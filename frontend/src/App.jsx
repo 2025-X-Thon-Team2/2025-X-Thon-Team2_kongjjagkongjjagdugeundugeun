@@ -6,7 +6,7 @@ import LogDisplay from './components/LogDisplay';
 function App() {
   return (
     <div>
-      <h1>교차검증AI</h1>
+      <h1>교차검증AI - Cross-Verification AI</h1>
       <InputForm />
       <TugOfWar />
       <LogDisplay />
