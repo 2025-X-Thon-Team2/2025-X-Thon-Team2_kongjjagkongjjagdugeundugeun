@@ -269,6 +269,14 @@ button:active {
     border: 1px solid #f0f0f0;
 }
 
+/* AI 응답이 길어질 때, 내용이 카드 밖으로 벗어나지 않도록 스타일 추가 */
+.timeline-item .content pre, .timeline-item .content code {
+    white-space: pre-wrap;    /* 공백을 유지하면서 자동 줄바꿈을 허용합니다. */
+    word-break: break-all;      /* 단어가 길어도 강제로 줄바꿈하여 오버플로우를 방지합니다. */
+    font-family: inherit;     /* 폰트를 주변 텍스트와 동일하게 설정합니다. */
+}
+
+
 /* 푸터(하단) 섹션 스타일 */
 footer {
     text-align: center;
