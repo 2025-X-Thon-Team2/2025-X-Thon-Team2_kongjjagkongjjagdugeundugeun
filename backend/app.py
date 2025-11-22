@@ -21,106 +21,123 @@ app = Flask(__name__, template_folder='../frontend', static_folder='../frontend/
 # =======================================================
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "YOUR_GOOGLE_API_KEY")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "YOUR_OPENAI_API_KEY")
-SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY", "YOUR_SERPAPI_API_KEY") # SerpApi 키 추가
+SERPAPI_API_KEY = os.environ.get("SERPAPI_API_KEY", "YOUR_SERPAPI_API_KEY")
 
 PROJECT_ID = "team_hackathon_demo"
 DB_FILE = "project_db.json"
 
 # =======================================================
-# [Prompt Engineering] System Prompts
+# [Prompt Engineering] System Prompts (Korean)
 # =======================================================
-PROMPT_PRE_ANALYZER = """
-You are a senior analyst. Your task is to thoroughly analyze the user's image and question to extract key information before the main solver begins.
-**Instructions:**
-1.  **Analyze the Image:** Identify the core subject (e.g., math, physics, logic puzzle).
-2.  **Identify the Goal:** What is the user's ultimate question?
-3.  **Extract Key Data:** List all relevant numbers, variables, and conditions shown in the image.
-4.  **Formulate a Plan:** Outline the steps a solver should take to answer the question.
-**Output Format (Strictly follow):**
-- **Subject:** [e.g., Algebra]
-- **Goal:** [e.g., Solve for the variable 'x']
-- **Key Data:** [e.g., Equation: 2x + 5 = 15, Condition: x must be a positive integer]
-- **Action Plan:**
-    1. [First step]
-    2. [Second step]
-    3. [Third step]
+
+# Step 1: Classify the subject from the image (Korean)
+PROMPT_SUBJECT_CLASSIFIER = """
+당신은 전문적인 학문 분야 분류기입니다. 사용자의 이미지와 질문을 분석하여 특정 학문 분야를 식별하는 임무를 맡았습니다.
+**지침:**
+1. 이미지의 기호, 다이어그램, 텍스트를 분석하세요.
+2. 사용자의 질문을 분석하세요.
+3. 가장 관련성이 높은 학문 분야의 이름("선형대수학", "미적분학", "물리학 I", "컴퓨터 구조", "자료구조" 등)만 출력하세요. 다른 텍스트나 설명은 추가하지 마세요.
 """
 
-PROMPT_SEARCH_QUERY_GENERATOR = """
-Based on the pre-analysis of the user's request, generate 1-2 concise Google search queries to find relevant formulas, definitions, or context.
-**Pre-analysis Report:**
----
-{pre_analysis_result}
----
-**Instructions:**
-- Focus on the core concepts, symbols, or theorems identified in the report.
-- Output ONLY the search queries, one per line. Do not add any other text.
-**Example:**
-- **Input:** Subject: Calculus, Goal: Find the derivative of f(x) = x^3.
-- **Output:**
-  derivative of a cubic function
-  power rule for differentiation
+# Step 2: Generate search queries based on the subject (Korean)
+PROMPT_KNOWLEDGE_CRAWLER_QUERIES = """
+당신은 연구 보조원입니다. 식별된 주제를 바탕으로, 해당 분야의 문제를 해결하기 위한 필수 배경 지식을 수집하기 위해 3-4개의 간결한 Google 검색어를 생성하세요.
+**주제:** {subject}
+**지침:**
+- 핵심 정의, 주요 공식, 기본 정리에 대한 검색어를 만드세요.
+- 검색어만 한 줄에 하나씩 출력하세요.
+**입력 예시:** "선형대수학"
+**출력 예시:**
+행렬식이란
+역행렬 공식
+고유값과 고유벡터 정의
+선형 시스템 해결을 위한 크래머 법칙
 """
 
+# Step 3: Generate a structured Knowledge Package from search results (Korean)
+PROMPT_KNOWLEDGE_PACKAGE_GENERATOR = """
+당신은 데이터 설계자입니다. 당신의 임무는 웹 검색에서 얻은 원시 텍스트를 처리하여 구조화된 JSON "지식 패키지"로 만드는 것입니다.
+**규칙:**
+- 출력은 반드시 단일의 유효한 JSON 객체여야 합니다.
+- 제공된 검색 결과를 바탕으로 필드를 채우세요.
+- `context_text`는 AI가 읽을 수 있도록 수집된 모든 정보의 간결한 요약이어야 하며, **한국어로 작성**되어야 합니다.
+
+**원시 검색 결과:**
+---
+{search_results}
+---
+
+**JSON 출력 형식:**
+{{
+  "field": "{subject}",
+  "symbols": ["..."],
+  "formulas": ["..."],
+  "definitions": ["..."],
+  "examples": ["..."],
+  "context_text": "{subject}와 관련된 핵심 개념, 공식, 정의에 대한 포괄적인 요약..."
+}}
+"""
+
+# Step 4: The main solver prompt, now including the Knowledge Package (Korean)
 PROMPT_SOLVER_INIT = """
-You are a Distinguished Professor of Mathematics and Logic. Your goal is to provide a flawless, step-by-step solution in **English**.
-**1. Pre-analysis from a colleague:**
----
-{pre_analysis_result}
----
-**2. Relevant information from a web search:**
----
-{search_context}
----
-**Instructions:**
-1.  Use the pre-analysis and, most importantly, the web search results to formulate your solution.
-2.  Provide a clear, step-by-step reasoning for your solution.
-3.  **You MUST cite a credible source** for the primary theorem, formula, or method used. This can be from the web search or your own knowledge.
-4.  Conclude with a definitive final answer.
-**Output Format (Strictly follow):**
-## Step-by-Step Solution
-(Your detailed solution here)
+당신은 세계적으로 저명한 교수입니다. 당신의 목표는 제공된 지식을 활용하여 완벽하고 단계적인 해결책을 **한국어로** 제공하는 것입니다.
 
-### Source
-- **Method/Theorem:** [e.g., Pythagorean theorem]
-- **Citation:** [Provide a URL or reference to the source]
+**이 특정 분야에 대해 사전 패키징된 지식:**
+---
+{knowledge_package}
+---
 
-### Final Answer
-[Your Result Here]
+**지침:**
+1. 해결책을 공식화하기 위해 제공된 "사전 패키징된 지식"에 크게 의존해야 합니다.
+2. 명확하고 단계적인 추론을 제공하세요.
+3. 지식 패키지나 당신의 지식에서 가져온 기본 정리나 공식에 대한 **신뢰할 수 있는 출처를 반드시 인용**해야 합니다.
+4. 명확한 최종 답변으로 마무리하세요.
+
+**출력 형식 (엄격히 준수):**
+## 단계별 해결책
+(여기에 상세한 해결책)
+
+### 출처
+- **방법/정리:** [예: 크래머 법칙]
+- **인용:** [출처에 대한 URL 또는 참조 제공]
+
+### 최종 답변
+[여기에 결과]
 """
 
+# Prompts for the debate loop (Korean)
 PROMPT_VERIFIER_INIT = """
-You are the Chief Auditor of a high-stakes academic journal. Your job is to ruthlessly verify the solution provided by 'Model 01' (The Solver) in **English**.
-**Your Task:**
-1.  **Verify the Solution:** Check the step-by-step solution for calculation errors, logical fallacies, or hallucinations.
-2.  **Verify the Source:**
-    - Examine the cited source.
-    - Does the source support the method/theorem claimed?
-    - Is the source credible?
-**Output Rules (Strictly Follow):**
-- If the solution AND the source are 100% correct and credible, output ONLY: "VERDICT: CORRECT"
-- If there is ANY error (in the solution OR the source), output exactly in this format:
+당신은 매우 중요한 학술지의 최고 감사관입니다. 당신의 임무는 '해결사 모델'이 제공한 해결책을 **한국어로** 무자비하게 검증하는 것입니다.
+**임무:**
+1.  **해결책 검증:** 단계별 해결책의 계산 오류, 논리적 오류, 또는 환각(hallucination)을 확인하세요.
+2.  **출처 검증:**
+    - 인용된 출처를 검토하세요.
+    - 출처가 주장된 방법/정리를 뒷받침합니까?
+    - 출처가 신뢰할 만합니까?
+**출력 규칙 (엄격히 준수):**
+- 해결책과 출처가 100% 정확하고 신뢰할 수 있다면, 오직 "VERDICT: CORRECT"만 출력하세요.
+- 해결책이나 출처에 어떤 오류라도 있다면, 정확히 이 형식으로 출력하세요:
   VERDICT: INCORRECT
-  ## Critique
-  (Explain exactly what is wrong. Be specific about errors in the solution or issues with the source.)
-  ## Correct Solution
-  (Provide the correct step-by-step solution, a credible source, and the final answer.)
+  ## 비판
+  (무엇이 잘못되었는지 정확히 설명하세요. 해결책의 오류나 출처 문제를 구체적으로 지적하세요.)
+  ## 올바른 해결책
+  (올바른 단계별 해결책, 신뢰할 수 있는 출처, 그리고 최종 답변을 제공하세요.)
 """
 
 PROMPT_SOLVER_DEFENSE = """
-You are in a high-stakes debate. The 'Chief Auditor' (Gemini) has criticized your previous solution. Your response must be in **English**.
-**Your Task:**
-1.  Review the Auditor's critique carefully.
-2.  **Self-Correction:** If the critic is right, admit it. Start with `[DECISION]: ADMIT`, then provide the fully corrected solution, including a new or corrected source.
-3.  **Defense:** If you are certain the critic is wrong, defend your stance. Start with `[DECISION]: REBUT` and explain why your original logic and source are correct.
+당신은 중요한 토론에 참여하고 있습니다. '최고 감사관'(Gemini)이 당신의 이전 해결책을 비판했습니다. 당신의 답변은 **한국어로** 작성되어야 합니다.
+**임무:**
+1.  감사관의 비판을 신중하게 검토하세요.
+2.  **자기 수정:** 비판이 옳다면 인정하세요. `[DECISION]: ADMIT`으로 시작한 다음, 새롭거나 수정된 출처를 포함한 완전히 수정된 해결책을 제공하세요.
+3.  **방어:** 비판이 틀렸다고 확신한다면, 당신의 입장을 방어하세요. `[DECISION]: REBUT`으로 시작하고 왜 당신의 원래 논리와 출처가 정확한지 설명하세요.
 """
 
 PROMPT_VERIFIER_REBUTTAL = """
-The Solver has responded to your critique. Evaluate their response in **English**.
-**Output Rules:**
-- If they admitted and fixed the issue correctly: "VERDICT: RESOLVED (Winner: Gemini)"
-- If they rebutted and you are now convinced: "VERDICT: CONCEDED (Winner: GPT)"
-- If they are still wrong: "VERDICT: REJECTED" and restate the final correct answer and source.
+해결사가 당신의 비판에 답변했습니다. 그들의 응답을 **한국어로** 평가하세요.
+**출력 규칙:**
+- 만약 그들이 문제를 인정하고 올바르게 수정했다면: "VERDICT: RESOLVED (Winner: Gemini)"
+- 만약 그들이 반박했고 당신이 이제 설득되었다면: "VERDICT: CONCEDED (Winner: GPT)"
+- 만약 그들이 여전히 틀렸다면: "VERDICT: REJECTED"라고 말하고 최종 정답과 출처를 다시 명시하세요.
 """
 
 # =======================================================
@@ -153,20 +170,24 @@ def perform_google_search(query):
         search = GoogleSearch({"q": query, "api_key": SERPAPI_API_KEY})
         results = search.get_dict()
         
+        # Check for invalid API key or other errors from serpapi
+        if "error" in results:
+            return f"Search Error: {results['error']}"
+
         snippets = []
         if "organic_results" in results:
-            for result in results["organic_results"][:3]:
+            for result in results["organic_results"][:3]: # Use top 3 results
                 snippet = result.get("snippet", "No snippet available.")
                 link = result.get("link", "#")
-                snippets.append(f"- Title: {result.get('title', 'N/A')}\n  Snippet: {snippet}\n  Source: {link}")
+                snippets.append(f"Title: {result.get('title', 'N/A')}\nSnippet: {snippet}\nSource: {link}")
         
-        return "\n".join(snippets) if snippets else "No relevant search results found."
+        return "\n".join(snippets) if snippets else "검색 결과가 없습니다."
     except Exception as e:
         print(f"Error during Google Search: {e}")
-        return "Error performing search."
+        return f"검색 중 예외 발생: {str(e)}"
 
 # =======================================================
-# [Core Logic] AI Analysis and Debate Process
+# [Core Logic] AI Analysis and Debate Process (New Pipeline)
 # =======================================================
 def run_analysis_logic(image_file, user_question):
     genai.configure(api_key=GOOGLE_API_KEY)
@@ -175,40 +196,43 @@ def run_analysis_logic(image_file, user_question):
     
     credit_scores = load_project_scores(PROJECT_ID)
     status_updates = []
-
-    # === Step 0: Gemini Pre-analysis ===
+    
     image_file.seek(0)
     pil_image = Image.open(image_file)
-    pre_analysis_response = gemini_model.generate_content(
-        [PROMPT_PRE_ANALYZER, user_question, pil_image]
-    )
-    pre_analysis_result = pre_analysis_response.text
-    status_updates.append({"model": "Gemini", "content": pre_analysis_result, "step": "Pre-analysis"})
 
-    # === Step 0.5 (New): Google Search ===
-    search_query_prompt = PROMPT_SEARCH_QUERY_GENERATOR.format(pre_analysis_result=pre_analysis_result)
-    search_query_response = gemini_model.generate_content([search_query_prompt])
-    search_queries = search_query_response.text.strip().split('\n')
+    # === Step 1: Subject Classification ===
+    subject_response = gemini_model.generate_content(
+        [PROMPT_SUBJECT_CLASSIFIER, user_question, pil_image]
+    )
+    subject = subject_response.text.strip()
+    status_updates.append({"model": "Gemini", "content": f"인식된 주제: {subject}", "step": "주제 분류"})
+
+    # === Step 2: Knowledge Crawling ===
+    queries_prompt = PROMPT_KNOWLEDGE_CRAWLER_QUERIES.format(subject=subject)
+    queries_response = gemini_model.generate_content([queries_prompt])
+    search_queries = queries_response.text.strip().split('\n')
     
-    googling_content = "Generated Search Queries:\n" + "\n".join(search_queries) + "\n\n"
-    
-    all_search_results = []
+    raw_search_results = ""
+    crawling_content = "생성된 검색어:\n" + "\n".join(search_queries) + "\n\n--- 검색 결과 ---\n"
     for query in search_queries:
         if query:
             results = perform_google_search(query)
-            all_search_results.append(f"Search results for '{query}':\n{results}")
+            raw_search_results += f"'{query}'에 대한 결과:\n{results}\n\n"
     
-    search_context = "\n\n".join(all_search_results)
-    googling_content += search_context
-    status_updates.append({"model": "System", "content": googling_content, "step": "Googling"})
+    crawling_content += raw_search_results
+    status_updates.append({"model": "System", "content": crawling_content, "step": "지식 수집"})
 
-    # === Step 1: GPT Initial Solution ===
+    # === Step 3: Knowledge Package Generation ===
+    package_prompt = PROMPT_KNOWLEDGE_PACKAGE_GENERATOR.format(subject=subject, search_results=raw_search_results)
+    package_response = gemini_model.generate_content([package_prompt])
+    cleaned_json_string = package_response.text.strip().replace("```json", "").replace("```", "")
+    knowledge_package_str = cleaned_json_string
+    status_updates.append({"model": "Gemini", "content": knowledge_package_str, "step": "지식 패키지 생성"})
+
+    # === Step 4: GPT Initial Solution with Knowledge Injection ===
     image_file.seek(0)
     base64_image = base64.b64encode(image_file.read()).decode('utf-8')
-    solver_prompt = PROMPT_SOLVER_INIT.format(
-        pre_analysis_result=pre_analysis_result,
-        search_context=search_context
-    )
+    solver_prompt = PROMPT_SOLVER_INIT.format(knowledge_package=knowledge_package_str)
     
     response_01 = client_gpt.chat.completions.create(
         model="gpt-4o",
@@ -221,20 +245,20 @@ def run_analysis_logic(image_file, user_question):
         ]
     )
     a01 = response_01.choices[0].message.content
-    status_updates.append({"model": "GPT", "content": a01, "step": "Initial Solution"})
+    status_updates.append({"model": "GPT", "content": a01, "step": "초기 해결책"})
 
-    # === Step 2: Gemini Verification ===
+    # === Step 5: Gemini Verification (Unchanged) ===
     image_file.seek(0)
-    pil_image = Image.open(image_file)
+    pil_image_verify = Image.open(image_file)
     response_02 = gemini_model.generate_content(
-        [PROMPT_VERIFIER_INIT, f"User Question: {user_question}\n\nModel 01 Solution:\n{a01}", pil_image]
+        [PROMPT_VERIFIER_INIT, f"사용자 질문: {user_question}\n\n모델 01 해결책:\n{a01}", pil_image_verify]
     )
     r02 = response_02.text
-    status_updates.append({"model": "Gemini", "content": r02, "step": "Verification"})
+    status_updates.append({"model": "Gemini", "content": r02, "step": "검증"})
     
     is_correct = "VERDICT: CORRECT" in r02
     
-    # === Step 3: Conflict Resolution Loop ===
+    # === Step 6: Conflict Resolution Loop (Unchanged) ===
     final_answer = ""
     winner = ""
 
@@ -254,11 +278,11 @@ def run_analysis_logic(image_file, user_question):
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": PROMPT_SOLVER_DEFENSE},
-                    {"role": "user", "content": f"Auditor's Critique:\n{current_critique}"}
+                    {"role": "user", "content": f"감사관의 비판:\n{current_critique}"}
                 ]
             )
             gpt_defense = response_loop_gpt.choices[0].message.content
-            status_updates.append({"model": "GPT", "content": gpt_defense, "step": f"Round {current_loop} Defense"})
+            status_updates.append({"model": "GPT", "content": gpt_defense, "step": f"라운드 {current_loop} 방어"})
 
             if "[DECISION]: ADMIT" in gpt_defense:
                 points = get_score_by_depth(current_loop, "Gemini")
@@ -269,10 +293,10 @@ def run_analysis_logic(image_file, user_question):
                 break
 
             response_loop_gemini = gemini_model.generate_content(
-                [PROMPT_VERIFIER_REBUTTAL, f"GPT Defense:\n{gpt_defense}", pil_image]
+                [PROMPT_VERIFIER_REBUTTAL, f"GPT 방어:\n{gpt_defense}", pil_image_verify]
             )
             gemini_reaction = response_loop_gemini.text
-            status_updates.append({"model": "Gemini", "content": gemini_reaction, "step": f"Round {current_loop} Re-evaluation"})
+            status_updates.append({"model": "Gemini", "content": gemini_reaction, "step": f"라운드 {current_loop} 재평가"})
 
             if "VERDICT: CONCEDED" in gemini_reaction:
                 points = get_score_by_depth(current_loop, "GPT")
@@ -292,10 +316,10 @@ def run_analysis_logic(image_file, user_question):
                     score_gpt = credit_scores["GPT"]
                     score_gemini = credit_scores["Gemini"]
                     if score_gpt >= score_gemini:
-                        winner = f"GPT (Credit Win: {score_gpt} vs {score_gemini})"
+                        winner = f"GPT (신뢰도 승리: {score_gpt} vs {score_gemini})"
                         final_answer = a01
                     else:
-                        winner = f"Gemini (Credit Win: {score_gemini} vs {score_gpt})"
+                        winner = f"Gemini (신뢰도 승리: {score_gemini} vs {score_gpt})"
                         final_answer = current_critique
                     loop_active = False
     
