@@ -110,34 +110,28 @@ PROMPT_VERIFIER_INIT = """
 당신은 매우 중요한 학술지의 최고 감사관입니다. 당신의 임무는 '해결사 모델'이 제공한 해결책을 **한국어로** 무자비하게 검증하는 것입니다.
 **임무:**
 1.  **해결책 검증:** 단계별 해결책의 계산 오류, 논리적 오류, 또는 환각(hallucination)을 확인하세요.
-2.  **출처 검증:**
-    - 인용된 출처를 검토하세요.
-    - 출처가 주장된 방법/정리를 뒷받침합니까?
-    - 출처가 신뢰할 만합니까?
+2.  **출처 검증:** 인용된 출처를 검토하고, 주장을 뒷받침하는지, 신뢰할 수 있는지 확인하세요.
+**매우 중요:** 최종 답이 명백히 틀렸거나, 풀이 과정에 치명적인 논리적/계산 오류가 있는 경우에만 '오류'로 판정하세요. 사소한 표현 차이나 스타일은 문제 삼지 마세요.
+
 **출력 규칙 (엄격히 준수):**
-- 해결책과 출처가 100% 정확하고 신뢰할 수 있다면, 오직 "VERDICT: CORRECT"만 출력하세요.
-- 해결책이나 출처에 어떤 오류라도 있다면, 정확히 이 형식으로 출력하세요:
-  VERDICT: INCORRECT
-  ## 비판
-  (무엇이 잘못되었는지 정확히 설명하세요. 해결책의 오류나 출처 문제를 구체적으로 지적하세요.)
-  ## 올바른 해결책
-  (올바른 단계별 해결책, 신뢰할 수 있는 출처, 그리고 최종 답변을 제공하세요.)
+- **정답인 경우:** 당신의 방식으로 문제를 다시 풀어보고, 그 풀이 과정 끝에 "따라서 모델 01의 답변이 올바릅니다."라고 결론을 내리세요.
+- **오류가 있는 경우:** "모델 01의 해결책에는 다음과 같은 오류가 있습니다." 라는 문장으로 시작하여, 구체적인 비판과 함께 올바른 해결책을 `## 올바른 해결책`이라는 제목 아래에 제시하세요.
 """
 
 PROMPT_SOLVER_DEFENSE = """
 당신은 중요한 토론에 참여하고 있습니다. '최고 감사관'(Gemini)이 당신의 이전 해결책을 비판했습니다. 당신의 답변은 **한국어로** 작성되어야 합니다.
 **임무:**
 1.  감사관의 비판을 신중하게 검토하세요.
-2.  **자기 수정:** 비판이 옳다면 인정하세요. `[DECISION]: ADMIT`으로 시작한 다음, 새롭거나 수정된 출처를 포함한 완전히 수정된 해결책을 제공하세요.
-3.  **방어:** 비판이 틀렸다고 확신한다면, 당신의 입장을 방어하세요. `[DECISION]: REBUT`으로 시작하고 왜 당신의 원래 논리와 출처가 정확한지 설명하세요.
+2.  **자기 수정:** 비판이 옳다면, "검토 결과, 제 해결책에 오류가 있었음을 인정합니다."로 시작하여 오류의 원인을 설명한 후, 수정된 전체 풀이 과정과 답을 제시하세요.
+3.  **방어:** 비판이 틀렸다고 확신한다면, 당신의 입장을 방어하세요. 왜 당신의 원래 논리와 출처가 정확한지 설명하는 내용만 제시하세요.
 """
 
 PROMPT_VERIFIER_REBUTTAL = """
 해결사가 당신의 비판에 답변했습니다. 그들의 응답을 **한국어로** 평가하세요.
 **출력 규칙:**
-- 만약 그들이 문제를 인정하고 올바르게 수정했다면: "VERDICT: RESOLVED (Winner: Gemini)"
-- 만약 그들이 반박했고 당신이 이제 설득되었다면: "VERDICT: CONCEDED (Winner: GPT)"
-- 만약 그들이 여전히 틀렸다면: "VERDICT: REJECTED"라고 말하고 최종 정답과 출처를 다시 명시하세요.
+- 만약 그들이 문제를 인정하고 올바르게 수정했다면: "해결사의 수정을 검토한 결과, 이제 해결책이 정확함을 확인했습니다." 라는 문장으로 시작하세요.
+- 만약 그들이 반박했고 당신이 이제 설득되었다면: "해결사의 반박을 검토한 결과, 제 지적이 틀렸으며 해결사의 원래 주장이 옳았음을 인정합니다." 라는 문장으로 시작하세요.
+- 만약 그들이 여전히 틀렸다면: "해결사의 반박에도 불구하고, 여전히 원래 해결책에는 오류가 있습니다. 최종적으로 올바른 해결책은 다음과 같습니다." 라는 문장으로 시작하여 당신의 최종 해결책을 제시하세요.
 """
 
 # =======================================================
@@ -161,22 +155,17 @@ def save_project_scores(project_id, scores):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-def get_score_by_depth(loop_count, winner_role):
-    if winner_role == "Gemini": return (2 ** (loop_count * 2 - 1)) - 1
-    else: return (2 ** (loop_count * 2)) - 1
-
 def perform_google_search(query):
     try:
         search = GoogleSearch({"q": query, "api_key": SERPAPI_API_KEY})
         results = search.get_dict()
         
-        # Check for invalid API key or other errors from serpapi
         if "error" in results:
             return f"Search Error: {results['error']}"
 
         snippets = []
         if "organic_results" in results:
-            for result in results["organic_results"][:3]: # Use top 3 results
+            for result in results["organic_results"][:3]:
                 snippet = result.get("snippet", "No snippet available.")
                 link = result.get("link", "#")
                 snippets.append(f"Title: {result.get('title', 'N/A')}\nSnippet: {snippet}\nSource: {link}")
@@ -205,7 +194,7 @@ def run_analysis_logic(image_file, user_question):
         [PROMPT_SUBJECT_CLASSIFIER, user_question, pil_image]
     )
     subject = subject_response.text.strip()
-    status_updates.append({"model": "Gemini", "content": f"인식된 주제: {subject}", "step": "주제 분류"})
+    status_updates.append({"model": "System", "content": f"인식된 주제: {subject}", "step": "주제 분류"})
 
     # === Step 2: Knowledge Crawling ===
     queries_prompt = PROMPT_KNOWLEDGE_CRAWLER_QUERIES.format(subject=subject)
@@ -227,7 +216,7 @@ def run_analysis_logic(image_file, user_question):
     package_response = gemini_model.generate_content([package_prompt])
     cleaned_json_string = package_response.text.strip().replace("```json", "").replace("```", "")
     knowledge_package_str = cleaned_json_string
-    status_updates.append({"model": "Gemini", "content": knowledge_package_str, "step": "지식 패키지 생성"})
+    status_updates.append({"model": "System", "content": knowledge_package_str, "step": "지식 패키지 생성"})
 
     # === Step 4: GPT Initial Solution with Knowledge Injection ===
     image_file.seek(0)
@@ -247,7 +236,7 @@ def run_analysis_logic(image_file, user_question):
     a01 = response_01.choices[0].message.content
     status_updates.append({"model": "GPT", "content": a01, "step": "초기 해결책"})
 
-    # === Step 5: Gemini Verification (Unchanged) ===
+    # === Step 5: Gemini Verification ===
     image_file.seek(0)
     pil_image_verify = Image.open(image_file)
     response_02 = gemini_model.generate_content(
@@ -256,9 +245,9 @@ def run_analysis_logic(image_file, user_question):
     r02 = response_02.text
     status_updates.append({"model": "Gemini", "content": r02, "step": "검증"})
     
-    is_correct = "VERDICT: CORRECT" in r02
+    is_correct = "따라서 모델 01의 답변이 올바릅니다." in r02
     
-    # === Step 6: Conflict Resolution Loop (Unchanged) ===
+    # === Step 6: Conflict Resolution Loop ===
     final_answer = ""
     winner = ""
 
@@ -267,9 +256,9 @@ def run_analysis_logic(image_file, user_question):
         final_answer = a01
     else:
         current_loop = 0
-        max_loops = 3
+        max_loops = 5
         loop_active = True
-        current_critique = r02.replace("VERDICT: INCORRECT", "").strip()
+        current_critique = r02.replace("모델 01의 해결책에는 다음과 같은 오류가 있습니다.", "").strip()
 
         while loop_active and current_loop < max_loops:
             current_loop += 1
@@ -284,10 +273,18 @@ def run_analysis_logic(image_file, user_question):
             gpt_defense = response_loop_gpt.choices[0].message.content
             status_updates.append({"model": "GPT", "content": gpt_defense, "step": f"라운드 {current_loop} 방어"})
 
-            if "[DECISION]: ADMIT" in gpt_defense:
-                points = get_score_by_depth(current_loop, "Gemini")
+            if "오류가 있었음을 인정합니다" in gpt_defense:
+                points = (2**(2 * current_loop - 1)) - 1 # Gemini wins
                 credit_scores["Gemini"] += points
-                final_answer = gpt_defense.replace("[DECISION]: ADMIT", "").strip()
+                
+                # Gemini wins, so the final answer is Gemini's proposed solution from the critique
+                solution_parts = current_critique.split("## 올바른 해결책")
+                if len(solution_parts) > 1:
+                    final_answer = solution_parts[1].strip()
+                else:
+                    # Fallback if the marker is not found
+                    final_answer = gpt_defense 
+
                 winner = "Gemini"
                 loop_active = False
                 break
@@ -298,14 +295,14 @@ def run_analysis_logic(image_file, user_question):
             gemini_reaction = response_loop_gemini.text
             status_updates.append({"model": "Gemini", "content": gemini_reaction, "step": f"라운드 {current_loop} 재평가"})
 
-            if "VERDICT: CONCEDED" in gemini_reaction:
-                points = get_score_by_depth(current_loop, "GPT")
+            if "원래 주장이 옳았음을 인정합니다" in gemini_reaction:
+                points = (2**(2 * current_loop)) - 1 # GPT wins
                 credit_scores["GPT"] += points
-                final_answer = gpt_defense.replace("[DECISION]: REBUT", "").strip()
+                final_answer = gpt_defense
                 winner = "GPT"
                 loop_active = False
-            elif "VERDICT: RESOLVED" in gemini_reaction:
-                points = get_score_by_depth(current_loop, "Gemini")
+            elif "정확함을 확인했습니다" in gemini_reaction:
+                points = (2**(2 * current_loop - 1)) - 1 # Gemini wins
                 credit_scores["Gemini"] += points
                 final_answer = gpt_defense
                 winner = "Gemini"
@@ -313,21 +310,33 @@ def run_analysis_logic(image_file, user_question):
             else:
                 current_critique = gemini_reaction
                 if current_loop == max_loops:
+                    winner = "Draw (Timeout)"
                     score_gpt = credit_scores["GPT"]
                     score_gemini = credit_scores["Gemini"]
                     if score_gpt >= score_gemini:
-                        winner = f"GPT (신뢰도 승리: {score_gpt} vs {score_gemini})"
                         final_answer = a01
                     else:
-                        winner = f"Gemini (신뢰도 승리: {score_gemini} vs {score_gpt})"
-                        final_answer = current_critique
+                        parts = current_critique.split("## 올바른 해결책")
+                        if len(parts) > 1:
+                            final_answer = parts[1].strip()
+                        else:
+                            final_answer = a01
                     loop_active = False
     
     save_project_scores(PROJECT_ID, credit_scores)
     
+    # Format final answer to include the source model
+    display_answer = final_answer
+    if "Draw" in winner:
+        display_answer = f"### 최종 답변 (출처: GPT, Gemini 동의)\n\n" + final_answer
+    elif "GPT" in winner:
+        display_answer = f"### 최종 답변 (출처: GPT)\n\n" + final_answer
+    elif "Gemini" in winner:
+        display_answer = f"### 최종 답변 (출처: Gemini)\n\n" + final_answer
+
     return {
         "winner": winner,
-        "final_answer": final_answer,
+        "final_answer": display_answer,
         "scores": credit_scores,
         "process": status_updates
     }

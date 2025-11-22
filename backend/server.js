@@ -14,8 +14,8 @@ app.get('/api/health', (req, res) => {
 });
 
 // Placeholder for future API routes
-// const debateRoutes = require('./src/api/routes/debate');
-// app.use('/api', debateRoutes);
+const debateRoutes = require('./src/api/routes/debate');
+app.use('/api', debateRoutes);
 
 app.listen(port, () => {
   console.log(`Backend server listening at http://localhost:${port}`);
