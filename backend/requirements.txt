@@ -3,3 +3,7 @@ google-generativeai
 openai
 Flask
 python-dotenv
+
+google-search-results
+
+serpapi
