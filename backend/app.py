@@ -91,7 +91,8 @@ PROMPT_SOLVER_INIT = """
 1. 해결책을 공식화하기 위해 제공된 "사전 패키징된 지식"에 크게 의존해야 합니다.
 2. 명확하고 단계적인 추론을 제공하세요.
 3. 지식 패키지나 당신의 지식에서 가져온 기본 정리나 공식에 대한 **신뢰할 수 있는 출처를 반드시 인용**해야 합니다.
-4. 명확한 최종 답변으로 마무리하세요.
+4. **수식 서식:** 모든 수학적 표기법은 LaTeX를 사용하여 포맷하세요. 인라인 수식은 `\\(...\\)`로, 블록 수식은 `$$...$$`로 묶어주세요.
+5. 명확한 최종 답변으로 마무리하세요.
 
 **출력 형식 (엄격히 준수):**
 ## 단계별 해결책
@@ -111,6 +112,7 @@ PROMPT_VERIFIER_INIT = """
 **임무:**
 1.  **해결책 검증:** 단계별 해결책의 계산 오류, 논리적 오류, 또는 환각(hallucination)을 확인하세요.
 2.  **출처 검증:** 인용된 출처를 검토하고, 주장을 뒷받침하는지, 신뢰할 수 있는지 확인하세요.
+3.  **수식 서식:** 당신의 답변에 포함된 모든 수학적 표기법은 LaTeX를 사용하여 포맷하세요. 인라인 수식은 `\\(...\\)`로, 블록 수식은 `$$...$$`로 묶어주세요.
 **매우 중요:** 최종 답이 명백히 틀렸거나, 풀이 과정에 치명적인 논리적/계산 오류가 있는 경우에만 '오류'로 판정하세요. 사소한 표현 차이나 스타일은 문제 삼지 마세요.
 
 **출력 규칙 (엄격히 준수):**
@@ -122,12 +124,15 @@ PROMPT_SOLVER_DEFENSE = """
 당신은 중요한 토론에 참여하고 있습니다. '최고 감사관'(Gemini)이 당신의 이전 해결책을 비판했습니다. 당신의 답변은 **한국어로** 작성되어야 합니다.
 **임무:**
 1.  감사관의 비판을 신중하게 검토하세요.
-2.  **자기 수정:** 비판이 옳다면, "검토 결과, 제 해결책에 오류가 있었음을 인정합니다."로 시작하여 오류의 원인을 설명한 후, 수정된 전체 풀이 과정과 답을 제시하세요.
-3.  **방어:** 비판이 틀렸다고 확신한다면, 당신의 입장을 방어하세요. 왜 당신의 원래 논리와 출처가 정확한지 설명하는 내용만 제시하세요.
+2.  **수식 서식:** 당신의 답변에 포함된 모든 수학적 표기법은 LaTeX를 사용하여 포맷하세요. 인라인 수식은 `\\(...\\)`로, 블록 수식은 `$$...$$`로 묶어주세요.
+3.  **자기 수정:** 비판이 옳다면, "검토 결과, 제 해결책에 오류가 있었음을 인정합니다."로 시작하여 오류의 원인을 설명한 후, 수정된 전체 풀이 과정과 답을 제시하세요.
+4.  **방어:** 비판이 틀렸다고 확신한다면, 당신의 입장을 방어하세요. 왜 당신의 원래 논리와 출처가 정확한지 설명하는 내용만 제시하세요.
 """
 
 PROMPT_VERIFIER_REBUTTAL = """
 해결사가 당신의 비판에 답변했습니다. 그들의 응답을 **한국어로** 평가하세요.
+**수식 서식:** 당신의 답변에 포함된 모든 수학적 표기법은 LaTeX를 사용하여 포맷하세요. 인라인 수식은 `\\(...\\)`로, 블록 수식은 `$$...$$`로 묶어주세요.
+
 **출력 규칙:**
 - 만약 그들이 문제를 인정하고 올바르게 수정했다면: "해결사의 수정을 검토한 결과, 이제 해결책이 정확함을 확인했습니다." 라는 문장으로 시작하세요.
 - 만약 그들이 반박했고 당신이 이제 설득되었다면: "해결사의 반박을 검토한 결과, 제 지적이 틀렸으며 해결사의 원래 주장이 옳았음을 인정합니다." 라는 문장으로 시작하세요.
@@ -290,12 +295,12 @@ def format_final_summary(gemini_model, a01, r02, final_answer, winner, is_correc
 # =======================================================
 # [Core Logic] AI Analysis and Debate Process (New Pipeline)
 # =======================================================
-def run_analysis_logic(image_file, user_question):
+def run_analysis_logic(project_id, image_file, user_question):
     genai.configure(api_key=GOOGLE_API_KEY)
     client_gpt = OpenAI(api_key=OPENAI_API_KEY)
     gemini_model = genai.GenerativeModel('gemini-2.5-pro')
     
-    credit_scores = load_project_scores(PROJECT_ID)
+    credit_scores = load_project_scores(project_id)
     status_updates = []
     
     image_file.seek(0)
@@ -435,7 +440,7 @@ def run_analysis_logic(image_file, user_question):
                             final_answer = a01
                     loop_active = False
     
-    save_project_scores(PROJECT_ID, credit_scores)
+    save_project_scores(project_id, credit_scores)
     
     # 새로 추가된 5단계 요약 형식 생성
     # 참고: 더 깔끔한 요약 생성을 위해 소스 모델 접두사가 없는 원본 final_answer를 전달합니다.
@@ -453,11 +458,6 @@ def run_analysis_logic(image_file, user_question):
 # [API 라우트] 웹 페이지 및 API 엔드포인트
 # =======================================================
 
-# 서버 시작 시 신뢰도 점수를 0으로 초기화합니다.
-print("서버 시작 시 신뢰도 점수를 0으로 초기화합니다.")
-initial_scores = {"GPT": 0, "Gemini": 0}
-save_project_scores(PROJECT_ID, initial_scores)
-
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -469,16 +469,22 @@ def solve_problem():
     
     image_file = request.files['image']
     user_question = request.form.get('question', 'Please solve the problem in the image.')
+    project_id = request.form.get('project_id', PROJECT_ID) # PROJECT_ID는 폴백(fallback)으로 사용됩니다.
 
     if image_file.filename == '':
         return jsonify({"error": "No selected file"}), 400
 
     try:
-        result = run_analysis_logic(image_file, user_question)
+        result = run_analysis_logic(project_id, image_file, user_question)
         return jsonify(result)
     except Exception as e:
         print(f"Error processing request: {e}")
         return jsonify({"error": "An unexpected error occurred."}), 500
+
+@app.route('/api/scores/<project_id>', methods=['GET'])
+def get_project_scores(project_id):
+    scores = load_project_scores(project_id)
+    return jsonify(scores)
 
 # =======================================================
 # [애플리케이션 실행]
