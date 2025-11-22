@@ -1,0 +1,4 @@
+Pillow
+google-generativeai
+openai
+Flask

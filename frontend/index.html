@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GemPT - AI Verifier</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>GemPT</h1>
+            <p>AI-Powered Dual Verification System</p>
+        </header>
+
+        <main>
+            <div class="scores">
+                <div class="score-card gpt">
+                    <h2>ChatGPT Score</h2>
+                    <p id="gpt-score">0</p>
+                </div>
+                <div class="score-card gemini">
+                    <h2>Gemini Score</h2>
+                    <p id="gemini-score">0</p>
+                </div>
+            </div>
+
+            <div class="upload-section">
+                <form id="problem-form">
+                    <div class="form-group">
+                        <label for="image-upload">문제 이미지 업로드</label>
+                        <input type="file" id="image-upload" name="image" accept="image/*" required>
+                        <img id="image-preview" src="#" alt="Image Preview" class="hidden"/>
+                    </div>
+                    <div class="form-group">
+                        <label for="user-question">질문 입력</label>
+                        <textarea id="user-question" name="question" rows="3" placeholder="예: 이 이미지의 (2)번 문제를 풀고, 최종 정답을 도출해줘. 풀이과정을 상세히 서술해."></textarea>
+                    </div>
+                    <button type="submit" id="submit-btn">분석 시작</button>
+                </form>
+            </div>
+
+            <div id="loading" class="hidden">
+                <div class="spinner"></div>
+                <p>두 AI가 치열하게 토론 중입니다...</p>
+            </div>
+
+            <div id="results-section" class="hidden">
+                <div class="result-summary">
+                    <h2>최종 결과</h2>
+                    <p><strong>🏆 승자: <span id="winner"></span></strong></p>
+                    <div class="final-answer-card">
+                        <h3>최종 답변:</h3>
+                        <div id="final-answer"></div>
+                    </div>
+                </div>
+
+                <h2>AI 토론 과정</h2>
+                <div id="process-timeline">
+                    <!-- 토론 과정이 여기에 동적으로 추가됩니다. -->
+                </div>
+            </div>
+
+        </main>
+
+        <footer>
+            <p>&copy; 2025 KongjjagKongjjagDugeunDugeun Team. All rights reserved.</p>
+        </footer>
+    </div>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>
