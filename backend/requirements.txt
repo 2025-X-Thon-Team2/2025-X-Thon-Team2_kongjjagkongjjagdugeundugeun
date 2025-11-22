@@ -5,3 +5,5 @@ Flask
 python-dotenv
 
 google-search-results
+pytest
+pytest-mock
