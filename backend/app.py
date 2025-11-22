@@ -135,6 +135,57 @@ PROMPT_VERIFIER_REBUTTAL = """
 """
 
 # =======================================================
+# [Prompt Engineering] Debate Summary Prompts (Korean)
+# =======================================================
+PROMPT_DEBATE_SUMMARY = """
+당신은 두 AI 모델 간의 토론을 분석하고 요약하는 전문가입니다. 제공된 정보를 바탕으로 다음 세 가지 항목을 정확히 추출하고, 반드시 한국어로 작성해주세요.
+
+1.  **계산 근거 요약**: 최종 답안을 도출하기까지의 핵심적인 계산 과정이나 논리적 근거를 요약합니다.
+2.  **GPT 초기 답변의 오류 포인트 3가지**: Gemini가 지적한 GPT의 초기 답변의 구체적인 오류 3가지를 목록 형태로 제시합니다.
+3.  **Gemini의 검증 근거 3가지**: Gemini가 GPT의 오류를 찾아내기 위해 사용한 검증 논리나 근거 3가지를 목록 형태로 제시합니다.
+
+**입력 정보:**
+---
+[GPT 초기 답변]
+{a01}
+---
+[Gemini 검증 내용]
+{r02}
+---
+
+**출력 규칙:**
+- 반드시 다음의 JSON 형식을 사용하세요.
+- 각 항목에 대해 3가지 포인트가 없는 경우, 가능한 만큼만 채우고 나머지는 비워두세요.
+
+```json
+{{
+  "calculation_summary": "요약 내용...",
+  "gpt_errors": [
+    "오류 포인트 1",
+    "오류 포인트 2",
+    "오류 포인트 3"
+  ],
+  "gemini_verification": [
+    "검증 근거 1",
+    "검증 근거 2",
+    "검증 근거 3"
+  ]
+}}
+```
+"""
+
+PROMPT_DEBATE_CONCLUSION = """
+당신은 AI 토론의 결과를 요약하는 최종 보고서 작성자입니다. 다음 정보를 바탕으로, 교차검증 결론을 2~3줄의 완결된 문장으로 요약해주세요. 반드시 한국어로 작성해야 합니다.
+
+**정보:**
+- **토론 승자:** {winner}
+- **최종 결론:** {final_answer}
+
+**요약 예시:**
+초기 GPT 답변에서 몇 가지 오류가 발견되었으나, Gemini의 정밀한 교차검증을 통해 이를 바로잡았습니다. 최종적으로 Gemini가 제시한 수정된 해결책이 더 정확한 것으로 판명되어 최종 답안으로 채택되었습니다.
+"""
+
+# =======================================================
 # [함수] 데이터베이스 및 유틸리티
 # =======================================================
 def load_project_scores(project_id):
@@ -174,6 +225,67 @@ def perform_google_search(query):
     except Exception as e:
         print(f"Error during Google Search: {e}")
         return f"검색 중 예외 발생: {str(e)}"
+
+def format_final_summary(gemini_model, a01, r02, final_answer, winner, is_correct):
+    summary_data = {
+        "calculation_summary": "해당 없음",
+        "gpt_errors": ["오류가 발견되지 않았습니다."],
+        "gemini_verification": ["GPT의 초기 답변이 정확하여 추가 검증이 필요하지 않았습니다."]
+    }
+
+    if not is_correct:
+        try:
+            # 토론 요약 (계산 근거, 오류 포인트, 검증 근거)
+            summary_prompt = PROMPT_DEBATE_SUMMARY.format(a01=a01, r02=r02)
+            summary_response = gemini_model.generate_content([summary_prompt])
+            
+            # 응답에서 JSON 부분만 추출
+            cleaned_json_string = summary_response.text.strip()
+            if cleaned_json_string.startswith("```json"):
+                cleaned_json_string = cleaned_json_string[len("```json"):].strip()
+            if cleaned_json_string.endswith("```"):
+                cleaned_json_string = cleaned_json_string[:-len("```")].strip()
+            
+            summary_json = json.loads(cleaned_json_string)
+            summary_data.update(summary_json)
+        except Exception as e:
+            print(f"Error generating debate summary: {e}")
+            # Fallback if parsing fails
+            summary_data['gpt_errors'] = ["Gemini의 검증 내용에서 오류 포인트를 추출하는 데 실패했습니다."]
+            summary_data['gemini_verification'] = [r02]
+
+
+    # 최종 결론 요약
+    conclusion_summary = ""
+    try:
+        conclusion_prompt = PROMPT_DEBATE_CONCLUSION.format(winner=winner, final_answer=final_answer)
+        conclusion_response = gemini_model.generate_content([conclusion_prompt])
+        conclusion_summary = conclusion_response.text.strip()
+    except Exception as e:
+        print(f"Error generating conclusion summary: {e}")
+        conclusion_summary = "최종 결론을 요약하는 데 실패했습니다."
+
+    # 최종 텍스트 포맷팅
+    gpt_errors_formatted = "\n- ".join(summary_data.get('gpt_errors', ['추출 실패']))
+    gemini_verification_formatted = "\n- ".join(summary_data.get('gemini_verification', ['추출 실패']))
+
+    formatted_string = f"""
+[1] 최종 답안
+{final_answer}
+
+[2] 계산 근거 요약
+{summary_data.get('calculation_summary', '요약 실패')}
+
+[3] GPT 초기 답변의 오류 포인트
+- {gpt_errors_formatted}
+
+[4] Gemini의 검증 근거
+- {gemini_verification_formatted}
+
+[5] 교차검증 결론 요약
+{conclusion_summary}
+"""
+    return formatted_string.strip()
 
 # =======================================================
 # [Core Logic] AI Analysis and Debate Process (New Pipeline)
@@ -325,18 +437,14 @@ def run_analysis_logic(image_file, user_question):
     
     save_project_scores(PROJECT_ID, credit_scores)
     
-    # Format final answer to include the source model
-    display_answer = final_answer
-    if "Draw" in winner:
-        display_answer = f"### 최종 답변 (출처: GPT, Gemini 동의)\n\n" + final_answer
-    elif "GPT" in winner:
-        display_answer = f"### 최종 답변 (출처: GPT)\n\n" + final_answer
-    elif "Gemini" in winner:
-        display_answer = f"### 최종 답변 (출처: Gemini)\n\n" + final_answer
+    # 새로 추가된 5단계 요약 형식 생성
+    # 참고: 더 깔끔한 요약 생성을 위해 소스 모델 접두사가 없는 원본 final_answer를 전달합니다.
+    formatted_summary = format_final_summary(gemini_model, a01, r02, final_answer, winner, is_correct)
 
+    # 프론트엔드에 반환되는 최종 답변은 새로 포맷된 요약문입니다.
     return {
         "winner": winner,
-        "final_answer": display_answer,
+        "final_answer": formatted_summary, # 새로운 포맷의 요약문을 메인 답변으로 반환
         "scores": credit_scores,
         "process": status_updates
     }
@@ -344,6 +452,12 @@ def run_analysis_logic(image_file, user_question):
 # =======================================================
 # [API 라우트] 웹 페이지 및 API 엔드포인트
 # =======================================================
+
+# 서버 시작 시 신뢰도 점수를 0으로 초기화합니다.
+print("서버 시작 시 신뢰도 점수를 0으로 초기화합니다.")
+initial_scores = {"GPT": 0, "Gemini": 0}
+save_project_scores(PROJECT_ID, initial_scores)
+
 @app.route('/')
 def index():
     return render_template('index.html')
