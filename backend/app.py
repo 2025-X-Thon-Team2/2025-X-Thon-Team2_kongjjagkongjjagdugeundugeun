@@ -3,7 +3,7 @@ import json
 import base64
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from PIL import Image
-from google import genai
+import google.generativeai as genai
 from openai import OpenAI
 
 # =======================================================
@@ -104,8 +104,11 @@ def get_score_by_depth(loop_count, winner_role):
 # [Core Logic]
 # =======================================================
 def run_analysis_logic(image_file, user_question):
+    # API 키 설정
+    genai.configure(api_key=GOOGLE_API_KEY)
+    
     # Initialize clients
-    client_gemini = genai.Client(api_key=GOOGLE_API_KEY)
+    gemini_model = genai.GenerativeModel('gemini-1.5-flash')
     client_gpt = OpenAI(api_key=OPENAI_API_KEY)
     
     credit_scores = load_project_scores(PROJECT_ID)
@@ -127,9 +130,8 @@ def run_analysis_logic(image_file, user_question):
     # 2. Gemini Verification
     image_file.seek(0) # Reset file pointer for PIL
     pil_image = Image.open(image_file)
-    response_02 = client_gemini.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=[PROMPT_VERIFIER_INIT, f"User Question: {user_question}\n\nModel 01 Solution:\n{a01}", pil_image]
+    response_02 = gemini_model.generate_content(
+        [PROMPT_VERIFIER_INIT, f"User Question: {user_question}\n\nModel 01 Solution:\n{a01}", pil_image]
     )
     r02 = response_02.text
     
@@ -174,9 +176,8 @@ def run_analysis_logic(image_file, user_question):
                 break
 
             # 3-2. Gemini Re-evaluation
-            response_loop_gemini = client_gemini.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=[PROMPT_VERIFIER_REBUTTAL, f"GPT Defense:\n{gpt_defense}", pil_image]
+            response_loop_gemini = gemini_model.generate_content(
+                [PROMPT_VERIFIER_REBUTTAL, f"GPT Defense:\n{gpt_defense}", pil_image]
             )
             gemini_reaction = response_loop_gemini.text
             status_updates.append({"model": "Gemini", "content": gemini_reaction, "step": f"Round {current_loop} Re-evaluation"})
