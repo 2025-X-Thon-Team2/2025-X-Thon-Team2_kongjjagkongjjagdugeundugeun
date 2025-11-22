@@ -2,3 +2,4 @@ Pillow
 google-generativeai
 openai
 Flask
+python-dotenv

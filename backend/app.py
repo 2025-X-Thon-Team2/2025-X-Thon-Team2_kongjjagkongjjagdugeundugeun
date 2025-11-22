@@ -1,16 +1,19 @@
 import os
 import json
 import base64
-from flask import Flask, request, jsonify, render_template, send_from_directory
+from flask import Flask, request, jsonify, render_template
 from PIL import Image
-import google.generativeai as genai # Gemini API를 위한 라이브러리
-from openai import OpenAI # OpenAI API를 위한 라이브러리
+import google.generativeai as genai
+from openai import OpenAI
+from dotenv import load_dotenv # .env 파일 로드를 위한 라이브러리
+
+# .env 파일에서 환경 변수를 로드합니다.
+# 이 코드는 GOOGLE_API_KEY와 OPENAI_API_KEY 변수를 읽어옵니다.
+load_dotenv()
 
 # =======================================================
 # Flask 애플리케이션 초기화
 # =======================================================
-# Flask 앱을 생성합니다. 
-# template_folder는 HTML 파일이 있는 위치를 지정하고, static_folder는 CSS, JS, 이미지 등 정적 파일이 있는 위치를 지정합니다.
 app = Flask(__name__, template_folder='../frontend', static_folder='../frontend/static')
 
 # =======================================================
