@@ -1,94 +1,757 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8"> <!-- 문서의 문자 인코딩을 UTF-8로 설정합니다. 한글 등 다양한 문자를 올바르게 표시합니다. -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- 모바일 기기에서 웹페이지가 적절하게 확대/축소되도록 뷰포트를 설정합니다. -->
-    <title>GemPT - AI Verifier</title> <!-- 브라우저 탭에 표시될 페이지 제목입니다. -->
-    <!-- style.css 파일을 연결합니다. 웹페이지의 디자인(색상, 레이아웃 등)을 담당합니다. -->
-    <!-- Flask의 url_for 함수를 사용하여 static 폴더 내의 css/style.css 파일을 참조합니다. -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>느좋AI - Cross Verification System</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    animation: {
+                        'bounce-drop': 'bounce-drop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                        'tension-intro': 'tension-intro 0.8s ease-in-out infinite',
+                        'wiggle-slow': 'wiggle 3s ease-in-out infinite',
+                        'float': 'float 6s ease-in-out infinite',
+                        'float-slow': 'float 8s ease-in-out infinite',
+                        'float-slower': 'float 10s ease-in-out infinite',
+                        'fade-in': 'fadeIn 0.5s ease-out forwards',
+                        'fade-in-up': 'fadeInUp 0.6s ease-out forwards',
+                    },
+                    keyframes: {
+                        wiggle: { '0%, 100%': { transform: 'rotate(-3deg)' }, '50%': { transform: 'rotate(3deg)' } },
+                        float: { '0%, 100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-10px)' } },
+                        fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+                        fadeInUp: { '0%': { opacity: '0', transform: 'translateY(20px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <!-- Lucide Icons (Vanilla JS Version) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        body { font-family: 'Nunito', sans-serif; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+    </style>
 </head>
 <body>
-    <!-- 웹페이지의 전체 내용을 감싸는 컨테이너입니다. 중앙 정렬 및 최대 너비를 설정합니다. -->
-    <div class="container">
-        <!-- 웹페이지의 헤더(상단) 부분입니다. 제목과 간단한 설명을 포함합니다. -->
-        <header>
-            <h1>GemPT</h1> <!-- 서비스의 메인 제목입니다. -->
-            <p>AI-Powered Dual Verification System</p> <!-- 서비스의 간략한 설명입니다. -->
-        </header>
+    <div id="root"></div>
 
-        <!-- 웹페이지의 주요 콘텐츠 영역입니다. -->
-        <main>
-            <!-- ChatGPT와 Gemini의 점수를 표시하는 섹션입니다. -->
-            <div class="scores">
-                <!-- ChatGPT 점수 카드 -->
-                <div class="score-card gpt">
-                    <h2>ChatGPT Score</h2>
-                    <p id="gpt-score">0</p> <!-- JavaScript로 업데이트될 ChatGPT의 현재 점수입니다. -->
+    <script type="text/babel">
+        /* {% raw %} */
+        const { useState, useEffect, useRef } = React;
+
+        // --- [Fix: Lucide Icon Component for CDN] ---
+        // React와 Lucide의 DOM 충돌을 방지하기 위한 안전한 래퍼 컴포넌트
+        const Icon = ({ name, size = 24, className, color, ...props }) => {
+            const ref = useRef(null);
+
+            useEffect(() => {
+                if (ref.current) {
+                    // 1. React가 모르게 내부 HTML을 초기화하고 i 태그 생성
+                    const i = document.createElement('i');
+                    i.setAttribute('data-lucide', name);
+                    
+                    ref.current.innerHTML = ''; 
+                    ref.current.appendChild(i);
+
+                    // 2. Lucide에게 이 특정 span 안에서만 아이콘을 렌더링하라고 지시
+                    if (window.lucide) {
+                        window.lucide.createIcons({
+                            icons: { [name]: window.lucide.icons[name] },
+                            nameAttr: 'data-lucide',
+                            attrs: { 
+                                class: className, 
+                                width: size, 
+                                height: size, 
+                                stroke: color || "currentColor",
+                                ...props
+                            }
+                        }, ref.current); 
+                    }
+                }
+            }, [name, size, className, color, props]);
+
+            // React는 이 span만 관리하고, 내부는 Lucide가 관리하도록 둡니다.
+            return <span ref={ref} style={{ display: 'inline-flex', verticalAlign: 'middle' }}></span>;
+        };
+
+        // 사용되는 아이콘 이름 목록
+        const iconNames = ['Send', 'Upload', 'Award', 'Terminal', 'CheckCircle2', 'XCircle', 'MessageSquare', 'FileText', 'X', 'HelpCircle', 'Folder', 'Plus', 'ChevronRight', 'ArrowLeft', 'Sparkles'];
+        
+        // 아이콘 이름들을 React 컴포넌트 객체로 변환
+        const Icons = {};
+        iconNames.forEach(name => {
+            Icons[name] = (props) => <Icon name={name} {...props} />;
+        });
+
+        // 기존 코드에서 사용하던 방식대로 구조 분해 할당
+        const { Send, Upload, Award, Terminal, CheckCircle2, XCircle, MessageSquare, FileText, X, HelpCircle, Folder, Plus, ChevronRight, ArrowLeft, Sparkles } = Icons;
+
+        // 기존의 LucideIcon 헬퍼도 호환성을 위해 유지
+        const LucideIcon = ({ icon, ...props }) => {
+             return <Icon name={icon} {...props} />;
+        };
+        
+        // Initialize global icons (optional fallback)
+        const useLucide = () => {
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            }, []);
+        };
+
+        // --- [Components] ---
+
+        // DetailedPixelCharacter: 32x32 픽셀 아트 캐릭터
+        const DetailedPixelCharacter = ({ variant, is_winner, is_loser, scale = 1 }) => {
+        return (
+            <svg 
+            viewBox="0 0 32 32" 
+            className={`drop-shadow-md ${is_winner ? 'animate-bounce' : ''} ${is_loser ? 'opacity-50 rotate-12 grayscale-[0.5]' : ''}`} 
+            style={{
+                imageRendering: 'pixelated',
+                width: `${24 * scale}px`, 
+                height: `${24 * scale}px`
+            }}
+            >
+            <rect x="10" y="30" width="12" height="2" fill="#000000" opacity="0.2" />
+            {variant === 'original' ? (
+                // [Gemini] 루이지 모자 쓴 헬로키티 (오른쪽)
+                <g>
+                    <rect x="0" y="0" width="32" height="32" fill="none" />
+                    <rect x="6" y="5" width="20" height="6" fill="#43A047" /> 
+                    <rect x="4" y="9" width="24" height="3" fill="#43A047" /> 
+                    <rect x="4" y="10" width="24" height="1" fill="#2E7D32" opacity="0.3" /> 
+                    <rect x="12" y="6" width="8" height="4" fill="#FFFFFF" /> 
+                    <path d="M14 7 V10 H17" stroke="#43A047" strokeWidth="1" fill="none" /> 
+                    <rect x="5" y="12" width="22" height="10" fill="#FFFFFF" /> 
+                    <rect x="5" y="9" width="2" height="3" fill="#FFFFFF" />
+                    <rect x="25" y="9" width="2" height="3" fill="#FFFFFF" />
+                    <rect x="9" y="15" width="2" height="3" fill="#000000" />
+                    <rect x="21" y="15" width="2" height="3" fill="#000000" />
+                    <rect x="14" y="17" width="4" height="2" fill="#FFEB3B" />
+                    <rect x="4" y="14" width="2" height="1" fill="#000000" />
+                    <rect x="4" y="17" width="2" height="1" fill="#000000" />
+                    <rect x="26" y="14" width="2" height="1" fill="#000000" />
+                    <rect x="26" y="17" width="2" height="1" fill="#000000" />
+                    <rect x="7" y="17" width="3" height="2" fill="#F48FB1" opacity="0.7" />
+                    <rect x="22" y="17" width="3" height="2" fill="#F48FB1" opacity="0.7" />
+                    <rect x="8" y="22" width="16" height="6" fill="#43A047" /> 
+                    <rect x="10" y="22" width="12" height="6" fill="#1E88E5" /> 
+                    <rect x="10" y="28" width="4" height="2" fill="#1E88E5" /> 
+                    <rect x="18" y="28" width="4" height="2" fill="#1E88E5" /> 
+                    <rect x="11" y="23" width="2" height="2" fill="#FFEB3B" />
+                    <rect x="19" y="23" width="2" height="2" fill="#FFEB3B" />
+                    <rect x="8" y="30" width="5" height="2" fill="#795548" />
+                    <rect x="19" y="30" width="5" height="2" fill="#795548" />
+                    <rect x="7" y="24" width="2" height="3" fill="#FFFFFF" />
+                    <rect x="23" y="24" width="2" height="3" fill="#FFFFFF" />
+                </g>
+            ) : (
+                // [ChatGPT] 마리오 모자 쓴 헬로키티 (왼쪽)
+                <g>
+                    <rect x="0" y="0" width="32" height="32" fill="none" />
+                    <rect x="6" y="6" width="20" height="6" fill="#E53935" /> 
+                    <rect x="4" y="9" width="24" height="3" fill="#E53935" /> 
+                    <rect x="12" y="7" width="8" height="4" fill="#FFFFFF" /> 
+                    <path d="M14 7 V10 M14 7 L16 9 L18 7 M18 7 V10" stroke="#E53935" strokeWidth="1" fill="none" /> 
+                    <rect x="5" y="12" width="22" height="10" fill="#FFFFFF" /> 
+                    <rect x="5" y="9" width="2" height="3" fill="#FFFFFF" />
+                    <rect x="25" y="9" width="2" height="3" fill="#FFFFFF" />
+                    <rect x="9" y="15" width="2" height="3" fill="#000000" />
+                    <rect x="21" y="15" width="2" height="3" fill="#000000" />
+                    <rect x="14" y="17" width="4" height="2" fill="#FFEB3B" />
+                    <rect x="4" y="14" width="2" height="1" fill="#000000" />
+                    <rect x="4" y="17" width="2" height="1" fill="#000000" />
+                    <rect x="26" y="14" width="2" height="1" fill="#000000" />
+                    <rect x="26" y="17" width="2" height="1" fill="#000000" />
+                    <rect x="7" y="17" width="3" height="2" fill="#F48FB1" opacity="0.6" />
+                    <rect x="22" y="17" width="3" height="2" fill="#F48FB1" opacity="0.6" />
+                    <rect x="8" y="22" width="16" height="6" fill="#E53935" /> 
+                    <rect x="10" y="22" width="12" height="6" fill="#1E88E5" /> 
+                    <rect x="10" y="28" width="4" height="2" fill="#1E88E5" /> 
+                    <rect x="18" y="28" width="4" height="2" fill="#1E88E5" /> 
+                    <rect x="11" y="23" width="2" height="2" fill="#FFEB3B" />
+                    <rect x="19" y="23" width="2" height="2" fill="#FFEB3B" />
+                    <rect x="8" y="30" width="5" height="2" fill="#795548" />
+                    <rect x="19" y="30" width="5" height="2" fill="#795548" />
+                    <rect x="7" y="24" width="2" height="3" fill="#FFFFFF" />
+                    <rect x="23" y="24" width="2" height="3" fill="#FFFFFF" />
+                </g>
+            )}
+            </svg>
+        );
+        };
+
+        // RopeSvg: 줄다리기 줄
+        const RopeSvg = ({ slack, width = 200 }) => {
+        const start_y = 20;
+        const mid_x = width / 2;
+        return (
+            <svg width={width} height="60" className="absolute overflow-visible z-0" style={{ left: '50%', transform: 'translateX(-50%)', bottom: '18px' }}>
+            <path d={`M 0 ${start_y} Q ${mid_x} ${start_y + slack + 2} ${width} ${start_y}`} stroke="rgba(0,0,0,0.2)" strokeWidth="3" fill="none" />
+            <path d={`M 0 ${start_y} Q ${mid_x} ${start_y + slack} ${width} ${start_y}`} stroke="#D7CCC8" strokeWidth="3" fill="none" strokeLinecap="round"/>
+            <path d={`M 0 ${start_y} Q ${mid_x} ${start_y + slack} ${width} ${start_y}`} stroke="#8D6E63" strokeWidth="1" strokeDasharray="3 3" fill="none" opacity="0.5"/>
+            <g style={{ transform: `translate(${mid_x}px, ${start_y + slack * 0.7}px)` }}> 
+                <rect x="-1.5" y="-2" width="3" height="6" fill="#B71C1C" /> 
+                <path d="M 0 0 L 0 20" stroke="#D32F2F" strokeWidth="1.5" /> 
+                <path d="M 0 20 L 10 24 L 0 28 Z" fill="#E53935" /> 
+            </g>
+            </svg>
+        );
+        };
+
+        // PixelCloud: 구름
+        const PixelCloud = ({ className, style }) => (
+        <svg viewBox="0 0 24 12" className={className} style={{...style, imageRendering: 'pixelated'}}>
+            <rect x="4" y="4" width="16" height="8" fill="white" />
+            <rect x="8" y="2" width="8" height="2" fill="white" />
+            <rect x="2" y="6" width="2" height="4" fill="white" />
+            <rect x="20" y="6" width="2" height="4" fill="white" />
+            <path d="M4 12 H20 M20 10 V12 M4 10 V12 M2 6 H4 M20 6 H22 M22 6 V10 M2 6 V10 M8 2 H16 M16 2 V4 M8 2 V4" stroke="#333" strokeWidth="0.5" fill="none" opacity="0.1"/>
+        </svg>
+        );
+
+        // GroundDecoration: 풀/꽃 장식
+        const GroundDecoration = () => {
+        const items = [
+            { type: 'grass', left: '10%', color: '#00a800' },
+            { type: 'flower', left: '25%', color: '#f8d800' }, 
+            { type: 'grass', left: '40%', color: '#00a800' },
+            { type: 'flower', left: '65%', color: '#e40058' }, 
+            { type: 'grass', left: '85%', color: '#00a800' },
+        ];
+        return (
+            <>
+            {items.map((item, idx) => (
+                <div key={idx} className="absolute bottom-full mb-[-2px]" style={{ left: item.left }}>
+                {item.type === 'grass' ? <div className="w-2 h-2 bg-[#00a800] rounded-t-sm" /> : 
+                    <svg width="10" height="12" viewBox="0 0 10 12" className="animate-wiggle-slow">
+                    <rect x="4" y="6" width="2" height="6" fill="#00a800" />
+                    <circle cx="5" cy="4" r="3" fill={item.color} />
+                    <circle cx="5" cy="4" r="1" fill="white" />
+                    </svg>}
                 </div>
-                <!-- Gemini 점수 카드 -->
-                <div class="score-card gemini">
-                    <h2>Gemini Score</h2>
-                    <p id="gemini-score">0</p> <!-- JavaScript로 업데이트될 Gemini의 현재 점수입니다. -->
+            ))}
+            </>
+        );
+        };
+
+        // IntroAnimation
+        const IntroAnimation = ({ on_complete }) => {
+        const [visible, set_visible] = useState(true);
+        const letters = ['G', 'e', 'm', 'P', 'T']; 
+
+        useEffect(() => {
+            const animation_end_time = 4000; 
+            const hold_time = 2000;         
+            const fade_out_duration = 800;   
+
+            const fade_timer = setTimeout(() => {
+            set_visible(false); 
+            }, animation_end_time + hold_time);
+
+            const complete_timer = setTimeout(() => {
+            on_complete();
+            }, animation_end_time + hold_time + fade_out_duration);
+
+            return () => {
+            clearTimeout(fade_timer);
+            clearTimeout(complete_timer);
+            };
+        }, [on_complete]);
+
+        return (
+            <div className={`fixed inset-0 z-50 flex flex-col bg-[#5c94fc] transition-opacity duration-[800ms] ease-out ${!visible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+            <div className="flex-1 relative overflow-hidden">
+                <PixelCloud className="absolute top-10 left-10 w-24 h-12 opacity-90 animate-float-slow" />
+                <PixelCloud className="absolute top-20 right-20 w-32 h-16 opacity-90 animate-float-slower" />
+                <PixelCloud className="absolute top-40 left-1/3 w-20 h-10 opacity-80 animate-float" />
+
+                <div className="absolute inset-0 flex items-center justify-center pb-32">
+                <div className="flex gap-3">
+                    {letters.map((char, idx) => (
+                    <span 
+                        key={idx}
+                        className="text-8xl font-black text-white drop-shadow-[4px_4px_0_rgba(0,0,0,0.2)] animate-bounce-drop inline-block opacity-0"
+                        style={{ 
+                        animationDelay: `${idx * 0.8}s`, 
+                        fontFamily: '"Press Start 2P", "Nunito", sans-serif',
+                        textShadow: '4px 4px 0 #3b82f6'
+                        }}
+                    >
+                        {char}
+                    </span>
+                    ))}
+                </div>
+                </div>
+                
+                <div className="absolute bottom-40 w-full text-center">
+                <p className="text-white font-bold tracking-widest uppercase text-lg animate-pulse opacity-0" style={{animation: 'fadeIn 1s ease-out 4.5s forwards'}}>
+                    Credit Verification System
+                </p>
                 </div>
             </div>
 
-            <!-- 사용자로부터 문제 이미지와 질문을 입력받는 섹션입니다. -->
-            <div class="upload-section">
-                <!-- 파일 업로드 및 질문 제출을 위한 폼입니다. -->
-                <form id="problem-form">
-                    <!-- 이미지 업로드 그룹 -->
-                    <div class="form-group">
-                        <label for="image-upload">문제 이미지 업로드</label> <!-- 파일 입력 필드의 라벨입니다. -->
-                        <!-- 이미지 파일을 선택하는 입력 필드입니다. 'accept="image/*"'는 이미지 파일만 선택 가능하도록 합니다. -->
-                        <input type="file" id="image-upload" name="image" accept="image/*" required>
-                        <!-- 업로드된 이미지 미리보기를 표시할 img 태그입니다. 초기에는 숨겨져 있습니다. -->
-                        <img id="image-preview" src="#" alt="Image Preview" class="hidden"/>
+            <div className="h-[16vh] w-full bg-[#c84c0c] relative flex justify-center items-end border-t-4 border-black/20">
+                <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'linear-gradient(335deg, rgba(0,0,0,0.3) 23px, transparent 23px), linear-gradient(155deg, rgba(0,0,0,0.3) 23px, transparent 23px), linear-gradient(335deg, rgba(0,0,0,0.3) 23px, transparent 23px), linear-gradient(155deg, rgba(0,0,0,0.3) 23px, transparent 23px)', backgroundSize: '58px 58px', backgroundPosition: '0px 2px, 4px 35px, 2px 31px, 34px 6px'}}></div>
+                <GroundDecoration />
+
+                <div className="mb-4 relative w-full max-w-md h-20 overflow-visible">
+                <div className="absolute bottom-0 left-0 w-full h-full animate-tension-intro">
+                    <div className="absolute bottom-0 left-0 w-full flex justify-center">
+                        <RopeSvg slack={10} width={260} />
                     </div>
-                    <!-- 질문 입력 그룹 -->
-                    <div class="form-group">
-                        <label for="user-question">질문 입력</label> <!-- 텍스트 영역의 라벨입니다. -->
-                        <!-- 사용자가 질문을 입력하는 텍스트 영역입니다. 'placeholder'는 입력 예시를 보여줍니다. -->
-                        <textarea id="user-question" name="question" rows="3" placeholder="예: 이 이미지의 (2)번 문제를 풀고, 최종 정답을 도출해줘. 풀이과정을 상세히 서술해."></textarea>
+                    <div className="absolute bottom-0 left-10" style={{ transform: 'rotate(-5deg)' }}>
+                        <DetailedPixelCharacter variant="modified" scale={2.5} />
                     </div>
-                    <!-- 폼 제출 버튼입니다. 클릭하면 JavaScript가 백엔드로 데이터를 보냅니다. -->
-                    <button type="submit" id="submit-btn">분석 시작</button>
-                </form>
-            </div>
-
-            <!-- 분석 중일 때 표시되는 로딩 애니메이션 및 메시지 섹션입니다. 초기에는 숨겨져 있습니다. -->
-            <div id="loading" class="hidden">
-                <div class="spinner"></div> <!-- 로딩 스피너 애니메이션 요소입니다. -->
-                <p>두 AI가 치열하게 토론 중입니다...</p> <!-- 로딩 메시지입니다. -->
-            </div>
-
-            <!-- 분석 결과가 표시되는 섹션입니다. 초기에는 숨겨져 있습니다. -->
-            <div id="results-section" class="hidden">
-                <!-- 최종 결과 요약 카드입니다. -->
-                <div class="result-summary">
-                    <h2>최종 결과</h2> <!-- 결과 섹션의 제목입니다. -->
-                    <p><strong>🏆 승자: <span id="winner"></span></strong></p> <!-- 최종 승자를 표시하는 부분입니다. JavaScript로 업데이트됩니다. -->
-                    <div class="final-answer-card">
-                        <h3>최종 답변:</h3> <!-- 최종 답변의 제목입니다. -->
-                        <div id="final-answer"></div> <!-- 백엔드에서 받은 최종 답변이 여기에 표시됩니다. Markdown 형식으로 올 수 있습니다. -->
+                    <div className="absolute bottom-0 right-10" style={{ transform: 'rotate(5deg)' }}>
+                        <DetailedPixelCharacter variant="original" scale={2.5} />
                     </div>
                 </div>
-
-                <h2>AI 토론 과정</h2> <!-- AI들 간의 토론 과정을 보여주는 섹션의 제목입니다. -->
-                <div id="process-timeline">
-                    <!-- AI 토론의 각 단계가 JavaScript를 통해 여기에 동적으로 추가됩니다. -->
                 </div>
             </div>
 
-        </main>
+            <style>{`
+                @keyframes bounce-drop {
+                0% { transform: translateY(-600px); opacity: 0; }
+                60% { transform: translateY(30px); opacity: 1; }
+                80% { transform: translateY(-10px); opacity: 1; }
+                100% { transform: translateY(0); opacity: 1; }
+                }
+                @keyframes tension-intro {
+                0%, 100% { transform: translateX(0px); }
+                25% { transform: translateX(-20px); }
+                75% { transform: translateX(20px); }
+                }
+                .animate-bounce-drop { animation: bounce-drop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+                .animate-tension-intro { animation: tension-intro 0.8s ease-in-out infinite; }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            `}</style>
+            </div>
+        );
+        };
 
-        <!-- 웹페이지의 푸터(하단) 부분입니다. 저작권 정보 등을 포함합니다. -->
-        <footer>
-            <p>&copy; 2025 KongjjagKongjjagDugeunDugeun Team. All rights reserved.</p>
-        </footer>
-    </div>
-    <!-- script.js 파일을 연결합니다. 웹페이지의 동적인 동작(폼 제출, 결과 표시 등)을 담당합니다. -->
-    <!-- 이 스크립트는 문서의 로드가 완료된 후 실행되도록 body 태그 끝에 위치하는 것이 좋습니다. -->
-    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+        // TugOfWarScene: 줄다리기 애니메이션 (메인 화면용)
+        const TugOfWarScene = ({ state, winner }) => {
+        const is_finished = state === 'finished';
+        const gpt_win = is_finished && winner === 'GPT';
+        const gemini_win = is_finished && winner === 'Gemini';
+        const [slack, set_slack] = useState(20);
+
+        useEffect(() => {
+            if (state === 'loading') {
+            const interval = setInterval(() => set_slack(prev => (prev === 20 ? 5 : 20)), 600);
+            return () => clearInterval(interval);
+            } else {
+            set_slack(10); 
+            }
+        }, [state]);
+
+        return (
+            <div className="fixed inset-x-0 bottom-0 h-48 flex justify-center items-end pointer-events-none z-30 animate-fade-in">
+        <div className="relative w-full max-w-lg h-full">
+            <div className={`absolute bottom-0 left-0 w-full h-full transition-transform duration-1000 ease-in-out 
+            ${gpt_win ? 'translate-x-[-100px]' : gemini_win ? 'translate-x-[100px]' : 'animate-tension'}`}
+            >
+            <div className="absolute bottom-0 left-0 w-full flex justify-center">
+                <RopeSvg slack={slack} width={300} />
+            </div>
+
+            <div className="absolute bottom-4 left-0" style={{ transform: 'rotate(-5deg)' }}>
+                <div className="bg-white/90 px-3 py-1 rounded-lg text-xs font-black text-blue-700 mb-2 border-2 border-blue-200 shadow-sm text-center absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                ChatGPT
+                </div>
+                <DetailedPixelCharacter variant="modified" is_winner={gpt_win} is_loser={gemini_win} scale={3} />
+            </div>
+
+            <div className="absolute bottom-4 right-0" style={{ transform: 'rotate(5deg)' }}>
+                <div className="bg-white/90 px-3 py-1 rounded-lg text-xs font-black text-orange-600 mb-2 border-2 border-orange-200 shadow-sm text-center absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap">
+                Gemini
+                </div>
+                <DetailedPixelCharacter variant="original" is_winner={gemini_win} is_loser={gpt_win} scale={3} />
+            </div>
+            </div>
+        </div>
+        </div>
+        );
+        };
+
+        // ProcessModal
+        const ProcessModal = ({ logs, on_close }) => {
+            useLucide();
+        return (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-fade-in-up">
+                <div className="bg-gray-100 px-4 py-3 border-b flex justify-between items-center">
+                <h3 className="font-bold text-gray-700 flex items-center gap-2"><LucideIcon icon="Terminal" size={16} /> 검증 과정 로그</h3>
+                <button onClick={on_close} className="p-1 rounded-full hover:bg-gray-200 transition-colors"><LucideIcon icon="X" size={20} className="text-gray-500" /></button>
+                </div>
+                <div className="p-4 overflow-y-auto bg-gray-50 scrollbar-hide">
+                {logs.length === 0 ? <p className="text-center text-gray-400 text-sm py-4">기록된 로그가 없습니다.</p> : logs.map((log, index) => <ChatBubble key={index} log={log} />)}
+                </div>
+            </div>
+            </div>
+        );
+        };
+
+        const ChatBubble = ({ log }) => {
+        const is_gpt = log.sender === "GPT";
+        const is_user = log.sender === "User";
+        if (is_user) return null;
+        if (log.sender === "System") return <div className="flex justify-center my-3"><div className="bg-gray-200 text-gray-600 text-[10px] py-1 px-3 rounded-full flex items-center gap-1 font-mono border border-gray-300"><LucideIcon icon="Terminal" size={10} />{log.message}</div></div>;
+        return (
+            <div className={`flex w-full mb-3 ${is_gpt ? 'justify-start' : 'justify-end'}`}>
+            <div className={`max-w-[85%] p-3 rounded-2xl shadow-sm border ${is_gpt ? 'bg-blue-50 border-blue-100 rounded-tl-none text-blue-900' : 'bg-purple-50 border-purple-100 rounded-tr-none text-purple-900'}`}>
+                <div className="flex items-center gap-2 mb-1 text-xs font-bold opacity-70">{is_gpt ? <LucideIcon icon="MessageSquare" size={12} /> : <LucideIcon icon="CheckCircle2" size={12} />}{log.sender}</div>
+                <div className="text-xs whitespace-pre-wrap leading-relaxed">{log.message}</div>
+            </div>
+            </div>
+        );
+        };
+
+        // ResultCard
+        const ResultCard = ({ result, on_show_process, question_text }) => {
+            useLucide();
+        
+        if (!result) return null;
+        return (
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 animate-fade-in-up mt-4 w-[95%] max-w-3xl bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-md border border-indigo-100 rounded-2xl p-6 shadow-2xl flex flex-col max-h-[60vh]">
+            
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <div className="flex items-center gap-2"><LucideIcon icon="Award" className="text-yellow-500" size={28} /><h2 className="text-2xl font-bold text-gray-800">최종 검증 완료!</h2></div>
+                <div className="flex gap-2">
+                    <button onClick={on_show_process} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 text-xs font-bold rounded-full hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-sm"><LucideIcon icon="FileText" size={12} />상세 풀이</button>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 mb-4 flex-shrink-0">
+                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center shadow-sm"><p className="text-xs text-gray-400 mb-1">최종 승자</p><p className="text-lg font-bold text-indigo-600">{result.winner}</p></div>
+                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center shadow-sm"><p className="text-xs text-gray-400 mb-1">획득 점수</p><p className="text-lg font-bold text-green-600">{result.winner === 'GPT' ? `+${result.scores?.GPT || 0}` : `+${result.scores?.Gemini || 0}`} Point</p></div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto scrollbar-hide space-y-4 pr-2">
+                <div className="bg-blue-50 rounded-lg border border-blue-100 p-4">
+                <h3 className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-2"><LucideIcon icon="HelpCircle" size={16} className="text-blue-500" />Q. 검증 요청 내용</h3>
+                <p className="text-sm text-blue-900 leading-relaxed break-keep">{question_text}</p>
+                </div>
+
+                <div className="bg-white rounded-lg border border-indigo-100 p-4">
+                <h3 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><LucideIcon icon="CheckCircle2" size={16} className="text-green-500" />최종 정답 및 풀이</h3>
+                <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{result.final_answer}</p>
+                </div>
+            </div>
+        </div>
+        );
+        };
+
+        // --- [New Cloud Card Background Component] ---
+        const CloudCardBackground = ({ children, onClick, className }) => {
+        return (
+            <div onClick={onClick} className={`relative p-8 flex flex-col items-center justify-center min-h-[180px] transition-transform hover:scale-105 cursor-pointer group ${className}`}>
+            {/* SVG Cloud Background (Pixel Art Style Approximation) */}
+            <svg className="absolute inset-0 w-full h-full drop-shadow-xl" viewBox="0 0 200 150" preserveAspectRatio="none" style={{imageRendering: 'pixelated'}}>
+                {/* Shadow/Border (Black) */}
+                <path fill="#000" d="M40 10 H90 V20 H110 V10 H160 V30 H180 V80 H160 V100 H110 V90 H90 V100 H40 V80 H20 V30 H40 Z" transform="scale(1.02) translate(-2, -2)" />
+                
+                {/* Inner White */}
+                <path fill="#FFF" d="M40 10 H90 V20 H110 V10 H160 V30 H180 V80 H160 V100 H110 V90 H90 V100 H40 V80 H20 V30 H40 Z" />
+            </svg>
+            
+            {/* Content Container */}
+            <div className="relative z-10 w-full h-full flex flex-col gap-2">
+                {children}
+            </div>
+            </div>
+        )
+        }
+
+
+        // ProjectCard (Modified to use CloudCardBackground)
+        const ProjectCard = ({ id, title, date, on_click }) => (
+        <CloudCardBackground onClick={on_click}>
+            <div className="flex items-start justify-between w-full mb-2">
+            {/* 1 & 2. Folder removed, Title takes its place */}
+            <h3 className="font-bold text-gray-800 text-2xl leading-tight line-clamp-2 text-left">
+                {title}
+            </h3>
+            <div className="text-xs text-gray-500 font-mono whitespace-nowrap ml-2 mt-1">{date}</div>
+            </div>
+            
+            {/* 3. Description removed */}
+            
+            {/* 4. Entrance link white */}
+            <div className="mt-auto w-full flex items-center justify-end text-white text-xs font-bold gap-1 opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md">
+            입장하기 <LucideIcon icon="ChevronRight" size={14} />
+            </div>
+        </CloudCardBackground>
+        );
+
+        // NewProjectCard (Modified to use CloudCardBackground)
+        const NewProjectCard = ({ on_create }) => (
+        <CloudCardBackground onClick={on_create} className="opacity-90 hover:opacity-100">
+            <div className="flex flex-col items-center justify-center h-full gap-1 text-gray-500 group-hover:text-blue-600 mb-10"> {/* Changed mt-2 to mb-10 for upward positioning */}
+                <LucideIcon icon="Plus" size={20} />
+                <span className="font-bold text-base">새 프로젝트 생성</span>
+            </div>
+        </CloudCardBackground>
+        );
+
+        // --- [Main App Component] ---
+
+        function App() {
+        useLucide();
+        const [view, set_view] = useState('intro');
+        const [projects, set_projects] = useState([]);
+        const [current_project, set_current_project] = useState(null);
+
+        const [input, set_input] = useState("");
+        const [image, set_image] = useState(null); // Preview URL
+        const [imageFile, set_imageFile] = useState(null); // Actual File object for upload
+
+        const [logs, set_logs] = useState([]);
+        const [is_loading, set_is_loading] = useState(false); 
+        const [result, set_result] = useState(null);
+        const [scores, set_scores] = useState({ GPT: 0, Gemini: 0 });
+        const [is_modal_open, set_is_modal_open] = useState(false);
+        const [process_started, set_process_started] = useState(false);
+        
+        // --- [New State for Project Creation Modal] ---
+        const [is_create_modal_open, set_is_create_modal_open] = useState(false);
+        const [new_project_title, set_new_project_title] = useState("");
+
+        const handle_intro_complete = () => { set_view('projectList'); };
+
+        // Step 1: Open the modal
+        const open_create_modal = () => {
+            set_new_project_title(""); // Reset title input
+            set_is_create_modal_open(true);
+        };
+
+        // Step 2: Submit the new project with user-defined title
+        const handle_create_project_submit = (e) => {
+            e.preventDefault();
+            if (!new_project_title.trim()) return;
+
+            // "project_id" is defined in API spec. "id" is used for local React key.
+            const new_project = { 
+            project_id: `proj_${Date.now()}`, 
+            id: Date.now(), 
+            title: new_project_title, 
+            date: new_project_title ? new Date().toLocaleDateString() : new Date().toLocaleDateString(), // Just in case
+            logs: [], 
+            result: null 
+            };
+            
+            set_projects([new_project, ...projects]);
+            set_is_create_modal_open(false);
+        };
+
+        const enter_project = (project) => {
+            set_current_project(project);
+            set_logs([]); set_result(null); set_process_started(false); set_input(""); set_image(null); set_imageFile(null);
+            set_view('chat');
+        };
+        
+        const back_to_projects = () => { set_view('projectList'); set_current_project(null); };
+        
+        const handle_image_upload = (e) => { 
+            const file = e.target.files[0];
+            if (file) {
+                set_image(URL.createObjectURL(file)); 
+                set_imageFile(file);
+            }
+        };
+
+        const handle_submit = async (e) => {
+            e.preventDefault();
+            if (!input.trim() && !imageFile) return;
+            
+            set_process_started(true); 
+            set_is_loading(true); 
+            set_result(null); 
+            set_logs([]); 
+            
+            const user_log = { step: 0, sender: "User", message: input + (image ? " [이미지 첨부됨]" : "") };
+            set_logs([user_log]);
+            
+            try {
+                // Construct FormData for Flask backend
+                const formData = new FormData();
+                formData.append('question', input);
+                if (imageFile) {
+                    formData.append('image', imageFile);
+                }
+
+                // Call backend API
+                const response = await fetch('/api/solve', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Backend error: ${response.statusText}`);
+                }
+
+                const final_result = await response.json();
+
+                // Backend response structure: 
+                // { winner, final_answer, scores, process: [{step, model, content}, ...] }
+                
+                // Simulate step-by-step process from backend history
+                if (final_result.process && Array.isArray(final_result.process)) {
+                    for (const process_step of final_result.process) {
+                        // Map backend 'model' to frontend 'sender' (System, GPT, Gemini)
+                        // Map backend 'content' to frontend 'message'
+                        const log_entry = {
+                            step: process_step.step || 0,
+                            sender: process_step.model, // App.py uses "model" key
+                            message: process_step.content // App.py uses "content" key
+                        };
+                        
+                        set_logs(prev => [...prev, log_entry]);
+                        // Add a small delay to simulate real-time thinking
+                        await new Promise(r => setTimeout(r, 800));
+                    }
+                }
+
+                set_scores(final_result.scores);
+                set_result(final_result);
+
+            } catch (error) { 
+                console.error("Error:", error); 
+                set_logs(prev => [...prev, { step: 999, sender: "System", message: `오류 발생: ${error.message}` }]);
+            } finally { 
+                set_is_loading(false); 
+            }
+        };
+        
+        const current_question = logs.find(l => l.sender === 'User')?.message || input;
+        
+        return (
+            <>
+            {view === 'intro' && <IntroAnimation on_complete={handle_intro_complete} />}
+
+            {(view === 'projectList' || view === 'chat') && (
+                <div className="min-h-screen bg-[#5c94fc] flex flex-col items-center font-sans relative overflow-hidden">
+                
+                <div className="absolute inset-0 pointer-events-none">
+                    <PixelCloud className="absolute top-10 left-10 w-24 h-12 opacity-60" />
+                    <PixelCloud className="absolute top-20 right-20 w-32 h-16 opacity-60" />
+                    <PixelCloud className="absolute top-40 left-1/3 w-20 h-10 opacity-50" />
+                </div>
+                <div className="absolute bottom-0 w-full h-[16vh] bg-[#c84c0c] border-t-4 border-black/20 pointer-events-none z-0">
+                    <div className="absolute inset-0 opacity-20" style={{backgroundImage: 'linear-gradient(335deg, rgba(0,0,0,0.3) 23px, transparent 23px), linear-gradient(155deg, rgba(0,0,0,0.3) 23px, transparent 23px), linear-gradient(335deg, rgba(0,0,0,0.3) 23px, transparent 23px), linear-gradient(155deg, rgba(0,0,0,0.3) 23px, transparent 23px)', backgroundSize: '58px 58px', backgroundPosition: '0px 2px, 4px 35px, 2px 31px, 34px 6px'}}></div>
+                    <GroundDecoration />
+                </div>
+
+                {view === 'projectList' && (
+                    <div className="z-10 w-full max-w-4xl px-6 py-12 flex flex-col h-screen">
+                    <div className="flex items-center gap-3 mb-8 animate-fade-in-up">
+                        <div className="w-12 h-12 bg-white rounded-2xl shadow-lg flex items-center justify-center text-2xl font-black text-blue-600">G</div>
+                        <div><h1 className="text-3xl font-black text-white drop-shadow-md">내 프로젝트</h1><p className="text-blue-100 text-sm">진행 중인 검증 작업을 관리하세요</p></div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 overflow-y-auto pb-20 scrollbar-hide animate-fade-in-up delay-100">
+                        <NewProjectCard on_create={open_create_modal} />
+                        {projects.map((project) => <ProjectCard key={project.id} {...project} on_click={() => enter_project(project)} />)}
+                    </div>
+                    
+                    {/* --- [Project Creation Modal] --- */}
+                    {is_create_modal_open && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+                        <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+                            <div className="bg-gray-100 px-4 py-3 border-b flex justify-between items-center">
+                            <h3 className="font-bold text-gray-700 flex items-center gap-2"><LucideIcon icon="Plus" size={16} /> 새 프로젝트</h3>
+                            <button onClick={() => set_is_create_modal_open(false)} className="p-1 rounded-full hover:bg-gray-200 transition-colors"><LucideIcon icon="X" size={20} className="text-gray-500" /></button>
+                            </div>
+                            <form onSubmit={handle_create_project_submit} className="p-5 flex flex-col gap-4">
+                            <div>
+                                <label className="block text-xs font-bold text-gray-500 mb-1">프로젝트 이름</label>
+                                <input 
+                                type="text" 
+                                value={new_project_title} 
+                                onChange={(e) => set_new_project_title(e.target.value)} 
+                                placeholder="예: AI의 미래에 대한 토론" 
+                                className="w-full bg-gray-50 text-gray-800 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-sm"
+                                autoFocus
+                                />
+                            </div>
+                            <button type="submit" disabled={!new_project_title.trim()} className={`w-full py-2 rounded-lg font-bold text-sm text-white shadow-md transition-all ${!new_project_title.trim() ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-105'}`}>
+                                생성하기
+                            </button>
+                            </form>
+                        </div>
+                        </div>
+                    )}
+                    </div>
+                )}
+
+                {view === 'chat' && (
+                    <div className="w-full h-full flex flex-col items-center relative">
+                    <button onClick={back_to_projects} className="absolute top-6 left-6 z-50 bg-white/80 p-2 rounded-full shadow-md hover:bg-white transition-colors text-gray-600"><LucideIcon icon="ArrowLeft" size={20} /></button>
+                    {is_modal_open && <ProcessModal logs={logs.filter(log => log.sender !== 'User')} on_close={() => set_is_modal_open(false)} />}
+                    
+                    {/* 질문 전송 시 항상 하단 줄다리기 애니메이션 표시 */}
+                    {process_started && (
+                        <TugOfWarScene state={is_loading ? 'loading' : 'finished'} winner={result?.winner} />
+                    )}
+
+                    {result && <ResultCard result={result} question_text={current_question} on_show_process={() => set_is_modal_open(true)} />}
+                    {!is_loading && result && (
+                        <button onClick={() => { set_process_started(false); set_result(null); set_input(""); set_image(null); set_imageFile(null); }} className="absolute bottom-8 right-8 z-50 bg-white text-indigo-600 p-3 rounded-full shadow-lg hover:bg-gray-100 font-bold text-xs flex items-center gap-1"><LucideIcon icon="X" size={16} /> 처음으로</button>
+                    )}
+                    <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[50vh] mt-20 z-20 relative animate-fade-in-up mx-4">
+                        <div className="bg-white border-b px-6 py-4 flex items-center justify-between z-10">
+                        <div className="flex items-center gap-2"><div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold">G</div><h1 className="text-xl font-bold text-gray-800 truncate max-w-[200px]">{current_project?.title}</h1></div>
+                        <div className="text-xs text-gray-400 flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>Online</div>
+                        </div>
+                        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 space-y-4 bg-gray-50">
+                        {process_started && is_loading ? (
+                            <div className="flex flex-col items-center gap-3 animate-pulse"><LucideIcon icon="Award" size={48} className="text-indigo-300 animate-bounce" /><p className="text-sm font-bold text-indigo-400">AI들이 치열하게 검증 중입니다...</p></div>
+                        ) : (<><LucideIcon icon="Award" size={48} className="opacity-20" /><p className="text-sm text-center">질문을 입력하거나 이미지를 업로드하여<br/>두 AI의 신뢰도 경쟁을 시작하세요.</p></>)}
+                        </div>
+                        <div className="bg-white border-t p-4">
+                        {image && <div className="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg w-fit"><img src={image} alt="Preview" className="w-10 h-10 object-cover rounded-md" /><span className="text-xs text-gray-500">이미지 첨부됨</span><button onClick={() => {set_image(null); set_imageFile(null);}} className="text-gray-400 hover:text-red-500"><LucideIcon icon="XCircle" size={16} /></button></div>}
+                        <form onSubmit={handle_submit} className="flex items-center gap-2">
+                            <label className="cursor-pointer p-3 text-gray-400 hover:text-indigo-500 transition-colors rounded-full hover:bg-indigo-50"><LucideIcon icon="Upload" size={20} /><input type="file" accept="image/*" className="hidden" onChange={handle_image_upload} /></label>
+                            <input type="text" value={input} onChange={(e) => set_input(e.target.value)} placeholder="질문 내용을 입력하세요..." className="flex-1 bg-gray-100 text-gray-800 placeholder-gray-400 px-4 py-3 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" disabled={is_loading} />
+                            <button type="submit" disabled={is_loading || (!input && !image)} className={`p-3 rounded-full text-white shadow-md transition-all ${is_loading || (!input && !image) ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-105'}`}><LucideIcon icon="Send" size={20} /></button>
+                        </form>
+                        </div>
+                    </div>
+                    </div>
+                )}
+                </div>
+            )}
+            <style>{`
+                @keyframes tension { 0%, 100% { transform: translateX(0px); } 25% { transform: translateX(-20px); } 75% { transform: translateX(20px); } }
+                .animate-tension { animation: tension 0.5s ease-in-out infinite; }
+                .animate-float-slow { animation: float 6s ease-in-out infinite; }
+                @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+            `}</style>
+            </>
+        );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+        /* {% endraw %} */
+    </script>
 </body>
 </html>
