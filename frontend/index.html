@@ -42,6 +42,20 @@
     <!-- Babel -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <!-- MathJax -->
+    <script>
+        window.MathJax = {
+          tex: {
+            inlineMath: [['\\(', '\\)']],
+            displayMath: [['$$', '$$']]
+          },
+          svg: {
+            fontCache: 'global'
+          }
+        };
+    </script>
+    <script type="text/javascript" id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+
     <!-- Lucide Icons (Vanilla JS Version) -->
     <script src="https://unpkg.com/lucide@latest"></script>
     
@@ -336,6 +350,12 @@
 
         // Result Content (Embeddable)
         const ResultContent = ({ result, on_show_process }) => {
+            useEffect(() => {
+                if (result && window.MathJax) {
+                    window.MathJax.typesetPromise();
+                }
+            }, [result]);
+
             if (!result) return null;
             return (
                 <div className="w-full bg-gradient-to-br from-white/80 to-white/50 backdrop-blur-sm border border-indigo-100 rounded-2xl p-6 shadow-sm animate-fade-in-up mb-6">
@@ -349,7 +369,7 @@
                     </div>
                     <div className="bg-white rounded-lg border border-indigo-100 p-4 shadow-sm">
                         <h3 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><LucideIcon icon="CheckCircle2" size={16} className="text-green-500" />최종 정답</h3>
-                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.final_answer}</p>
+                        <div className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.final_answer}</div>
                     </div>
                 </div>
             );
@@ -409,9 +429,19 @@
                 set_is_create_modal_open(false);
             };
 
-            const enter_project = (project) => {
+            const enter_project = async (project) => {
                 set_current_project(project);
-                setChatHistory([]); set_scores({ GPT: 0, Gemini: 0 }); set_input(""); set_image(null); set_imageFile(null);
+                // Fetch scores for the current project
+                try {
+                    const response = await fetch(`/api/scores/${project.project_id}`);
+                    if (!response.ok) throw new Error('Failed to fetch scores');
+                    const fetchedScores = await response.json();
+                    set_scores(fetchedScores);
+                } catch (error) {
+                    console.error("Error fetching scores:", error);
+                    set_scores({ GPT: 0, Gemini: 0 }); // Fallback to 0 if fetch fails
+                }
+                setChatHistory([]); set_input(""); set_image(null); set_imageFile(null);
                 set_view('chat');
             };
             const back_to_projects = () => { set_view('projectList'); set_current_project(null); };
@@ -436,6 +466,9 @@
                 try {
                     const formData = new FormData();
                     formData.append('question', input);
+                    if (current_project) {
+                        formData.append('project_id', current_project.project_id);
+                    }
                     if (imageFile) { formData.append('image', imageFile); }
 
                     const response = await fetch('/api/solve', { method: 'POST', body: formData });
