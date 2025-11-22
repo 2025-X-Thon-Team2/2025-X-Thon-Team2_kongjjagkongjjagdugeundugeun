@@ -4,4 +4,4 @@ openai
 Flask
 python-dotenv
 
-serpapi
+google-search-results
