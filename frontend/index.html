@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GemPT - Cross Verification System</title>
+    <title>느좋AI - Cross Verification System</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -93,7 +93,7 @@
                 <div className="bg-white border-b px-6 py-3 flex items-center justify-between z-20 shadow-sm sticky top-0">
                     <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">G</div>
-                        <h1 className="text-lg font-bold text-gray-800 hidden sm:block">GemPT</h1>
+                        <h1 className="text-lg font-bold text-gray-800 hidden sm:block">느좋AI</h1>
                     </div>
                     
                     {/* Center Score Display */}
@@ -142,24 +142,108 @@
             );
         };
 
-        // ... [PixelCloud, GroundDecoration, IntroAnimation kept same but omitted for brevity, they are essential] ...
-        // (For full code, assuming you have the previous parts. I will include them to be safe)
         const PixelCloud = ({ className, style }) => (<svg viewBox="0 0 24 12" className={className} style={{...style, imageRendering: 'pixelated'}}><rect x="4" y="4" width="16" height="8" fill="white" /><rect x="8" y="2" width="8" height="2" fill="white" /><rect x="2" y="6" width="2" height="4" fill="white" /><rect x="20" y="6" width="2" height="4" fill="white" /><path d="M4 12 H20 M20 10 V12 M4 10 V12 M2 6 H4 M20 6 H22 M22 6 V10 M2 6 V10 M8 2 H16 M16 2 V4 M8 2 V4" stroke="#333" strokeWidth="0.5" fill="none" opacity="0.1"/></svg>);
         const GroundDecoration = () => {
             const items = [{ type: 'grass', left: '10%', color: '#00a800' }, { type: 'flower', left: '25%', color: '#f8d800' }, { type: 'grass', left: '40%', color: '#00a800' }, { type: 'flower', left: '65%', color: '#e40058' }, { type: 'grass', left: '85%', color: '#00a800' }];
             return <>{items.map((item, idx) => (<div key={idx} className="absolute bottom-full mb-[-2px]" style={{ left: item.left }}>{item.type === 'grass' ? <div className="w-2 h-2 bg-[#00a800] rounded-t-sm" /> : <svg width="10" height="12" viewBox="0 0 10 12" className="animate-wiggle-slow"><rect x="4" y="6" width="2" height="6" fill="#00a800" /><circle cx="5" cy="4" r="3" fill={item.color} /><circle cx="5" cy="4" r="1" fill="white" /></svg>}</div>))}</>;
         };
+        
+        // [수정됨] IntroAnimation: 모든 이미지 PNG로 수정 + 사이즈 2배(w-40 h-40) + 캐시 방지
         const IntroAnimation = ({ on_complete }) => {
             const [visible, set_visible] = useState(true);
-            const letters = ['G', 'e', 'm', 'P', 'T']; 
+            const [imagesLoaded, setImagesLoaded] = useState(false);
+            
+            // 파일명 리스트 (.png로 통일)
+            const fallingImages = [
+                { src: '1.png', letter: 'G' },
+                { src: '2.png', letter: 'e' },
+                { src: '3.png', letter: 'm' },
+                { src: '4.png', letter: 'P' },
+                { src: '5.png', letter: 'T' }
+            ];
+            
+            // 이미지 프리로딩 (모두 로드되면 애니메이션 시작)
             useEffect(() => {
+                let loadedCount = 0;
+                const total = fallingImages.length;
+                // 캐시 방지를 위한 타임스탬프
+                const timestamp = new Date().getTime();
+
+                fallingImages.forEach((item) => {
+                    const img = new Image();
+                    // 쿼리 스트링 추가로 캐시 무효화 시도
+                    img.src = `/static/${item.src}?t=${timestamp}`;
+                    img.onload = () => {
+                        loadedCount++;
+                        if (loadedCount === total) setImagesLoaded(true);
+                    };
+                    img.onerror = () => {
+                        console.error(`이미지 로드 실패: ${item.src} (static 폴더 확인 필요)`);
+                        loadedCount++;
+                        if (loadedCount === total) setImagesLoaded(true);
+                    };
+                });
+            }, []);
+
+            useEffect(() => {
+                if (!imagesLoaded) return; 
+
                 const fade_timer = setTimeout(() => set_visible(false), 6000);
                 const complete_timer = setTimeout(on_complete, 6800);
                 return () => { clearTimeout(fade_timer); clearTimeout(complete_timer); };
-            }, [on_complete]);
+            }, [imagesLoaded, on_complete]);
+            
+            if (!imagesLoaded) {
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#5c94fc]">
+                        <div className="text-white font-bold animate-pulse flex flex-col items-center gap-2">
+                            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
+                            <p>리소스 로딩 중...</p>
+                        </div>
+                    </div>
+                );
+            }
+
             return (
                 <div className={`fixed inset-0 z-50 flex flex-col bg-[#5c94fc] transition-opacity duration-[800ms] ease-out ${!visible ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-                    <div className="flex-1 relative overflow-hidden"><PixelCloud className="absolute top-10 left-10 w-24 h-12 opacity-90 animate-float-slow" /><PixelCloud className="absolute top-20 right-20 w-32 h-16 opacity-90 animate-float-slower" /><div className="absolute inset-0 flex items-center justify-center pb-32"><div className="flex gap-3">{letters.map((char, idx) => (<span key={idx} className="text-8xl font-black text-white drop-shadow-[4px_4px_0_rgba(0,0,0,0.2)] animate-bounce-drop inline-block opacity-0" style={{ animationDelay: `${idx * 0.8}s`, fontFamily: '"Press Start 2P", "Nunito", sans-serif', textShadow: '4px 4px 0 #3b82f6' }}>{char}</span>))}</div></div></div>
+                    <div className="flex-1 relative overflow-hidden">
+                        <PixelCloud className="absolute top-10 left-10 w-24 h-12 opacity-90 animate-float-slow" />
+                        <PixelCloud className="absolute top-20 right-20 w-32 h-16 opacity-90 animate-float-slower" />
+                        <div className="absolute inset-0 flex items-center justify-center pb-32">
+                            <div className="flex gap-4">
+                                {fallingImages.map((item, idx) => (
+                                    <div 
+                                        key={idx} 
+                                        // [수정] w-40 h-40으로 2배 확대
+                                        className="relative animate-bounce-drop opacity-0 w-40 h-40"
+                                        style={{ animationDelay: `${idx * 0.8}s` }}
+                                    >
+                                        {/* 이미지 */}
+                                        <img 
+                                            src={`/static/${item.src}?t=${new Date().getTime()}`} 
+                                            alt={item.letter}
+                                            className="w-full h-full object-contain drop-shadow-lg absolute inset-0 z-10"
+                                            style={{ imageRendering: 'pixelated' }}
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                        />
+                                        {/* 로드 실패 시 대체 텍스트 (Fallback) */}
+                                        <div 
+                                            className="w-full h-full flex items-center justify-center text-6xl font-black text-white drop-shadow-[4px_4px_0_rgba(0,0,0,0.2)] hidden bg-white/20 rounded-lg border-2 border-white/50 backdrop-blur-sm"
+                                            style={{ 
+                                                fontFamily: '"Press Start 2P", "Nunito", sans-serif',
+                                                textShadow: '4px 4px 0 #3b82f6'
+                                            }}
+                                        >
+                                            {item.letter}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
                     <div className="h-[16vh] w-full bg-[#c84c0c] relative flex justify-center items-end border-t-4 border-black/20"><GroundDecoration /><div className="mb-4 relative w-full max-w-md h-20 overflow-visible"><div className="absolute bottom-0 left-0 w-full h-full animate-tension-intro"><div className="absolute bottom-0 left-0 w-full flex justify-center"><RopeSvg slack={10} width={260} /></div><div className="absolute bottom-0 left-10" style={{ transform: 'rotate(-5deg)' }}><DetailedPixelCharacter variant="modified" scale={2.5} /></div><div className="absolute bottom-0 right-10" style={{ transform: 'rotate(5deg)' }}><DetailedPixelCharacter variant="original" scale={2.5} /></div></div></div></div>
                     <style>{`@keyframes bounce-drop { 0% { transform: translateY(-600px); opacity: 0; } 60% { transform: translateY(30px); opacity: 1; } 80% { transform: translateY(-10px); opacity: 1; } 100% { transform: translateY(0); opacity: 1; } } @keyframes tension-intro { 0%, 100% { transform: translateX(0px); } 25% { transform: translateX(-20px); } 75% { transform: translateX(20px); } } .animate-bounce-drop { animation: bounce-drop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; } .animate-tension-intro { animation: tension-intro 0.8s ease-in-out infinite; }`}</style>
                 </div>
