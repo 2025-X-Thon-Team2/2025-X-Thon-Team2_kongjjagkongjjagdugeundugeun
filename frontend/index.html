@@ -59,20 +59,16 @@
         const { useState, useEffect, useRef } = React;
 
         // --- [Fix: Lucide Icon Component for CDN] ---
-        // React와 Lucide의 DOM 충돌을 방지하기 위한 안전한 래퍼 컴포넌트
         const Icon = ({ name, size = 24, className, color, ...props }) => {
             const ref = useRef(null);
 
             useEffect(() => {
                 if (ref.current) {
-                    // 1. React가 모르게 내부 HTML을 초기화하고 i 태그 생성
                     const i = document.createElement('i');
                     i.setAttribute('data-lucide', name);
-                    
                     ref.current.innerHTML = ''; 
                     ref.current.appendChild(i);
 
-                    // 2. Lucide에게 이 특정 span 안에서만 아이콘을 렌더링하라고 지시
                     if (window.lucide) {
                         window.lucide.createIcons({
                             icons: { [name]: window.lucide.icons[name] },
@@ -89,28 +85,17 @@
                 }
             }, [name, size, className, color, props]);
 
-            // React는 이 span만 관리하고, 내부는 Lucide가 관리하도록 둡니다.
             return <span ref={ref} style={{ display: 'inline-flex', verticalAlign: 'middle' }}></span>;
         };
 
-        // 사용되는 아이콘 이름 목록
-        const iconNames = ['Send', 'Upload', 'Award', 'Terminal', 'CheckCircle2', 'XCircle', 'MessageSquare', 'FileText', 'X', 'HelpCircle', 'Folder', 'Plus', 'ChevronRight', 'ArrowLeft', 'Sparkles'];
-        
-        // 아이콘 이름들을 React 컴포넌트 객체로 변환
+        const iconNames = ['Send', 'Upload', 'Award', 'Terminal', 'CheckCircle2', 'XCircle', 'MessageSquare', 'FileText', 'X', 'HelpCircle', 'Folder', 'Plus', 'ChevronRight', 'ArrowLeft', 'Sparkles', 'RefreshCw', 'BookOpen', 'Package', 'ChevronDown', 'ChevronUp', 'Trophy'];
         const Icons = {};
         iconNames.forEach(name => {
             Icons[name] = (props) => <Icon name={name} {...props} />;
         });
-
-        // 기존 코드에서 사용하던 방식대로 구조 분해 할당
-        const { Send, Upload, Award, Terminal, CheckCircle2, XCircle, MessageSquare, FileText, X, HelpCircle, Folder, Plus, ChevronRight, ArrowLeft, Sparkles } = Icons;
-
-        // 기존의 LucideIcon 헬퍼도 호환성을 위해 유지
-        const LucideIcon = ({ icon, ...props }) => {
-             return <Icon name={icon} {...props} />;
-        };
+        const { Send, Upload, Award, Terminal, CheckCircle2, XCircle, MessageSquare, FileText, X, HelpCircle, Folder, Plus, ChevronRight, ArrowLeft, Sparkles, RefreshCw, BookOpen, Package, ChevronDown, ChevronUp, Trophy } = Icons;
+        const LucideIcon = ({ icon, ...props }) => <Icon name={icon} {...props} />;
         
-        // Initialize global icons (optional fallback)
         const useLucide = () => {
             useEffect(() => {
                 if (window.lucide) window.lucide.createIcons();
@@ -119,12 +104,58 @@
 
         // --- [Components] ---
 
-        // DetailedPixelCharacter: 32x32 픽셀 아트 캐릭터
+        // [New Component] Confidence Bar (신뢰도 게이지 바)
+        const ConfidenceBar = ({ scores }) => {
+            const { GPT, Gemini } = scores;
+            const total = GPT + Gemini;
+            // 총점이 0이면 50:50으로 표시, 아니면 비율 계산
+            const gptPercent = total === 0 ? 50 : (GPT / total) * 100;
+            
+            return (
+                <div className="w-full px-6 pt-3 pb-1 bg-white z-10 flex flex-col gap-2">
+                    <div className="flex justify-between items-center text-xs font-bold tracking-wider px-1">
+                        <div className="flex items-center gap-1 text-blue-600">
+                            <LucideIcon icon="Trophy" size={12} />
+                            ChatGPT: <span className="text-sm">{GPT}</span>
+                        </div>
+                        <div className="text-gray-300 text-[10px]">TRUST SCORE</div>
+                        <div className="flex items-center gap-1 text-orange-600">
+                            <span className="text-sm">{Gemini}</span> : Gemini
+                            <LucideIcon icon="Trophy" size={12} />
+                        </div>
+                    </div>
+                    
+                    <div className="relative w-full h-3 bg-gray-100 rounded-full overflow-hidden flex shadow-inner border border-gray-200">
+                        {/* ChatGPT Bar (Blue) */}
+                        <div 
+                            className="h-full bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-700 ease-out relative" 
+                            style={{ width: `${gptPercent}%` }}
+                        >
+                            {/* Glare effect */}
+                            <div className="absolute top-0 left-0 w-full h-[50%] bg-white opacity-20"></div>
+                        </div>
+                        
+                        {/* Center Marker (VS) */}
+                        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-white z-10 opacity-50 mix-blend-overlay"></div>
+
+                        {/* Gemini Bar (Orange) */}
+                        <div 
+                            className="h-full bg-gradient-to-l from-orange-400 to-orange-600 transition-all duration-700 ease-out relative" 
+                            style={{ width: `${100 - gptPercent}%` }}
+                        >
+                             {/* Glare effect */}
+                             <div className="absolute top-0 left-0 w-full h-[50%] bg-white opacity-20"></div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
         const DetailedPixelCharacter = ({ variant, is_winner, is_loser, scale = 1 }) => {
         return (
             <svg 
             viewBox="0 0 32 32" 
-            className={`drop-shadow-md ${is_winner ? 'animate-bounce' : ''} ${is_loser ? 'opacity-50 rotate-12 grayscale-[0.5]' : ''}`} 
+            className={`drop-shadow-md transition-transform duration-500 ${is_winner ? 'animate-bounce scale-110' : ''} ${is_loser ? 'opacity-50 rotate-12 grayscale-[0.5]' : ''}`} 
             style={{
                 imageRendering: 'pixelated',
                 width: `${24 * scale}px`, 
@@ -133,7 +164,6 @@
             >
             <rect x="10" y="30" width="12" height="2" fill="#000000" opacity="0.2" />
             {variant === 'original' ? (
-                // [Gemini] 루이지 모자 쓴 헬로키티 (오른쪽)
                 <g>
                     <rect x="0" y="0" width="32" height="32" fill="none" />
                     <rect x="6" y="5" width="20" height="6" fill="#43A047" /> 
@@ -165,7 +195,6 @@
                     <rect x="23" y="24" width="2" height="3" fill="#FFFFFF" />
                 </g>
             ) : (
-                // [ChatGPT] 마리오 모자 쓴 헬로키티 (왼쪽)
                 <g>
                     <rect x="0" y="0" width="32" height="32" fill="none" />
                     <rect x="6" y="6" width="20" height="6" fill="#E53935" /> 
@@ -200,7 +229,6 @@
         );
         };
 
-        // RopeSvg: 줄다리기 줄
         const RopeSvg = ({ slack, width = 200 }) => {
         const start_y = 20;
         const mid_x = width / 2;
@@ -218,7 +246,6 @@
         );
         };
 
-        // PixelCloud: 구름
         const PixelCloud = ({ className, style }) => (
         <svg viewBox="0 0 24 12" className={className} style={{...style, imageRendering: 'pixelated'}}>
             <rect x="4" y="4" width="16" height="8" fill="white" />
@@ -229,7 +256,6 @@
         </svg>
         );
 
-        // GroundDecoration: 풀/꽃 장식
         const GroundDecoration = () => {
         const items = [
             { type: 'grass', left: '10%', color: '#00a800' },
@@ -254,7 +280,6 @@
         );
         };
 
-        // IntroAnimation
         const IntroAnimation = ({ on_complete }) => {
         const [visible, set_visible] = useState(true);
         const letters = ['G', 'e', 'm', 'P', 'T']; 
@@ -349,52 +374,57 @@
         );
         };
 
-        // TugOfWarScene: 줄다리기 애니메이션 (메인 화면용)
+        // TugOfWarScene: 줄다리기 애니메이션
         const TugOfWarScene = ({ state, winner }) => {
-        const is_finished = state === 'finished';
-        const gpt_win = is_finished && winner === 'GPT';
-        const gemini_win = is_finished && winner === 'Gemini';
-        const [slack, set_slack] = useState(20);
+            const is_loading = state === 'loading';
+            const is_finished = state === 'finished';
+            
+            const gpt_win = is_finished && winner === 'GPT';
+            const gemini_win = is_finished && winner === 'Gemini';
+            const [slack, set_slack] = useState(20);
 
-        useEffect(() => {
-            if (state === 'loading') {
-            const interval = setInterval(() => set_slack(prev => (prev === 20 ? 5 : 20)), 600);
-            return () => clearInterval(interval);
-            } else {
-            set_slack(10); 
-            }
-        }, [state]);
+            useEffect(() => {
+                if (is_loading) {
+                    const interval = setInterval(() => set_slack(prev => (prev === 20 ? 5 : 20)), 600);
+                    return () => clearInterval(interval);
+                } else {
+                    set_slack(10); 
+                }
+            }, [is_loading]);
 
-        return (
-            <div className="fixed inset-x-0 bottom-0 h-48 flex justify-center items-end pointer-events-none z-30 animate-fade-in">
-        <div className="relative w-full max-w-lg h-full">
-            <div className={`absolute bottom-0 left-0 w-full h-full transition-transform duration-1000 ease-in-out 
-            ${gpt_win ? 'translate-x-[-100px]' : gemini_win ? 'translate-x-[100px]' : 'animate-tension'}`}
-            >
-            <div className="absolute bottom-0 left-0 w-full flex justify-center">
-                <RopeSvg slack={slack} width={300} />
-            </div>
+            // Animation Class Logic
+            // If loading: 'animate-tension'
+            // If finished: Move to winner side (no animation loop)
+            const containerClass = `absolute bottom-0 left-0 w-full h-full transition-transform duration-1000 ease-in-out 
+                ${is_loading ? 'animate-tension' : (gpt_win ? 'translate-x-[-100px]' : gemini_win ? 'translate-x-[100px]' : '')}`;
 
-            <div className="absolute bottom-4 left-0" style={{ transform: 'rotate(-5deg)' }}>
-                <div className="bg-white/90 px-3 py-1 rounded-lg text-xs font-black text-blue-700 mb-2 border-2 border-blue-200 shadow-sm text-center absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                ChatGPT
+            return (
+                <div className="fixed inset-x-0 bottom-0 h-48 flex justify-center items-end pointer-events-none z-30 animate-fade-in">
+                    <div className="relative w-full max-w-lg h-full">
+                        <div className={containerClass}>
+                            <div className="absolute bottom-0 left-0 w-full flex justify-center">
+                                <RopeSvg slack={slack} width={300} />
+                            </div>
+
+                            <div className="absolute bottom-4 left-0" style={{ transform: 'rotate(-5deg)' }}>
+                                <div className={`bg-white/90 px-3 py-1 rounded-lg text-xs font-black text-blue-700 mb-2 border-2 border-blue-200 shadow-sm text-center absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap transition-opacity duration-500 ${gpt_win ? 'opacity-100 scale-110' : 'opacity-80'}`}>
+                                ChatGPT {gpt_win && "👑"}
+                                </div>
+                                <DetailedPixelCharacter variant="modified" is_winner={gpt_win} is_loser={gemini_win} scale={3} />
+                            </div>
+
+                            <div className="absolute bottom-4 right-0" style={{ transform: 'rotate(5deg)' }}>
+                                <div className={`bg-white/90 px-3 py-1 rounded-lg text-xs font-black text-orange-600 mb-2 border-2 border-orange-200 shadow-sm text-center absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap transition-opacity duration-500 ${gemini_win ? 'opacity-100 scale-110' : 'opacity-80'}`}>
+                                Gemini {gemini_win && "👑"}
+                                </div>
+                                <DetailedPixelCharacter variant="original" is_winner={gemini_win} is_loser={gpt_win} scale={3} />
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <DetailedPixelCharacter variant="modified" is_winner={gpt_win} is_loser={gemini_win} scale={3} />
-            </div>
-
-            <div className="absolute bottom-4 right-0" style={{ transform: 'rotate(5deg)' }}>
-                <div className="bg-white/90 px-3 py-1 rounded-lg text-xs font-black text-orange-600 mb-2 border-2 border-orange-200 shadow-sm text-center absolute -top-10 left-1/2 -translate-x-1/2 whitespace-nowrap">
-                Gemini
-                </div>
-                <DetailedPixelCharacter variant="original" is_winner={gemini_win} is_loser={gpt_win} scale={3} />
-            </div>
-            </div>
-        </div>
-        </div>
-        );
+            );
         };
 
-        // ProcessModal
         const ProcessModal = ({ logs, on_close }) => {
             useLucide();
         return (
@@ -413,69 +443,94 @@
         };
 
         const ChatBubble = ({ log }) => {
-        const is_gpt = log.sender === "GPT";
-        const is_user = log.sender === "User";
-        if (is_user) return null;
-        if (log.sender === "System") return <div className="flex justify-center my-3"><div className="bg-gray-200 text-gray-600 text-[10px] py-1 px-3 rounded-full flex items-center gap-1 font-mono border border-gray-300"><LucideIcon icon="Terminal" size={10} />{log.message}</div></div>;
-        return (
-            <div className={`flex w-full mb-3 ${is_gpt ? 'justify-start' : 'justify-end'}`}>
-            <div className={`max-w-[85%] p-3 rounded-2xl shadow-sm border ${is_gpt ? 'bg-blue-50 border-blue-100 rounded-tl-none text-blue-900' : 'bg-purple-50 border-purple-100 rounded-tr-none text-purple-900'}`}>
-                <div className="flex items-center gap-2 mb-1 text-xs font-bold opacity-70">{is_gpt ? <LucideIcon icon="MessageSquare" size={12} /> : <LucideIcon icon="CheckCircle2" size={12} />}{log.sender}</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed">{log.message}</div>
-            </div>
-            </div>
-        );
-        };
-
-        // ResultCard
-        const ResultCard = ({ result, on_show_process, question_text }) => {
-            useLucide();
-        
-        if (!result) return null;
-        return (
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 animate-fade-in-up mt-4 w-[95%] max-w-3xl bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-md border border-indigo-100 rounded-2xl p-6 shadow-2xl flex flex-col max-h-[60vh]">
+            const [isOpen, setIsOpen] = useState(false);
+            const is_gpt = log.sender === "GPT";
+            const is_user = log.sender === "User";
+            const is_system = log.sender === "System";
             
-            <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                <div className="flex items-center gap-2"><LucideIcon icon="Award" className="text-yellow-500" size={28} /><h2 className="text-2xl font-bold text-gray-800">최종 검증 완료!</h2></div>
-                <div className="flex gap-2">
-                    <button onClick={on_show_process} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 text-xs font-bold rounded-full hover:bg-indigo-50 hover:border-indigo-300 transition-all shadow-sm"><LucideIcon icon="FileText" size={12} />상세 풀이</button>
-                </div>
-            </div>
+            // Special handling for Knowledge steps
+            const is_knowledge_collection = log.step === "지식 수집";
+            const is_knowledge_package = log.step === "지식 패키지 생성";
 
-            <div className="grid grid-cols-2 gap-4 mb-4 flex-shrink-0">
-                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center shadow-sm"><p className="text-xs text-gray-400 mb-1">최종 승자</p><p className="text-lg font-bold text-indigo-600">{result.winner}</p></div>
-                <div className="bg-white p-3 rounded-lg border border-gray-100 text-center shadow-sm"><p className="text-xs text-gray-400 mb-1">획득 점수</p><p className="text-lg font-bold text-green-600">{result.winner === 'GPT' ? `+${result.scores?.GPT || 0}` : `+${result.scores?.Gemini || 0}`} Point</p></div>
-            </div>
+            if (is_user) return null;
 
-            <div className="flex-1 overflow-y-auto scrollbar-hide space-y-4 pr-2">
-                <div className="bg-blue-50 rounded-lg border border-blue-100 p-4">
-                <h3 className="text-sm font-bold text-blue-800 mb-2 flex items-center gap-2"><LucideIcon icon="HelpCircle" size={16} className="text-blue-500" />Q. 검증 요청 내용</h3>
-                <p className="text-sm text-blue-900 leading-relaxed break-keep">{question_text}</p>
-                </div>
+            // Dropdown UI for Knowledge steps
+            if (is_knowledge_collection || is_knowledge_package) {
+                // Try to pretty print JSON for knowledge package
+                let content = log.message;
+                if (is_knowledge_package) {
+                    try {
+                        const parsed = JSON.parse(log.message);
+                        content = JSON.stringify(parsed, null, 2);
+                    } catch (e) {
+                        // keep original if parse fails
+                    }
+                }
 
-                <div className="bg-white rounded-lg border border-indigo-100 p-4">
-                <h3 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><LucideIcon icon="CheckCircle2" size={16} className="text-green-500" />최종 정답 및 풀이</h3>
-                <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">{result.final_answer}</p>
+                return (
+                    <div className="flex flex-col w-full mb-3">
+                        <button 
+                            onClick={() => setIsOpen(!isOpen)}
+                            className="flex items-center justify-between w-full p-3 bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors text-left"
+                        >
+                            <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                                {is_knowledge_collection ? <LucideIcon icon="BookOpen" size={16} className="text-blue-500"/> : <LucideIcon icon="Package" size={16} className="text-purple-500"/>}
+                                {is_knowledge_collection ? "지식 수집 데이터" : "생성된 지식 패키지"}
+                            </div>
+                            <LucideIcon icon={isOpen ? "ChevronUp" : "ChevronDown"} size={16} className="text-gray-400" />
+                        </button>
+                        
+                        {isOpen && (
+                            <div className="mt-2 p-4 bg-gray-50 rounded-lg border border-gray-200 text-xs font-mono whitespace-pre-wrap text-gray-600 overflow-x-auto animate-fade-in">
+                                {content}
+                            </div>
+                        )}
+                    </div>
+                );
+            }
+
+            if (is_system) return <div className="flex justify-center my-3"><div className="bg-gray-200 text-gray-600 text-[10px] py-1 px-3 rounded-full flex items-center gap-1 font-mono border border-gray-300"><LucideIcon icon="Terminal" size={10} />{log.message}</div></div>;
+            
+            return (
+                <div className={`flex w-full mb-3 ${is_gpt ? 'justify-start' : 'justify-end'}`}>
+                <div className={`max-w-[85%] p-3 rounded-2xl shadow-sm border ${is_gpt ? 'bg-blue-50 border-blue-100 rounded-tl-none text-blue-900' : 'bg-purple-50 border-purple-100 rounded-tr-none text-purple-900'}`}>
+                    <div className="flex items-center gap-2 mb-1 text-xs font-bold opacity-70">{is_gpt ? <LucideIcon icon="MessageSquare" size={12} /> : <LucideIcon icon="CheckCircle2" size={12} />}{log.sender}</div>
+                    <div className="text-xs whitespace-pre-wrap leading-relaxed">{log.message}</div>
                 </div>
-            </div>
-        </div>
-        );
+                </div>
+            );
         };
 
-        // --- [New Cloud Card Background Component] ---
+        // --- [Refactored Result Content (Inline)] ---
+        const ResultContent = ({ result, on_show_process }) => {
+            if (!result) return null;
+            return (
+                <div className="w-full bg-gradient-to-br from-white/80 to-white/50 backdrop-blur-sm border border-indigo-100 rounded-2xl p-6 shadow-sm animate-fade-in-up">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2"><LucideIcon icon="Award" className="text-yellow-500" size={24} /><h2 className="text-xl font-bold text-gray-800">검증 결과</h2></div>
+                        <button onClick={on_show_process} className="flex items-center gap-1 px-3 py-1.5 bg-white border border-indigo-200 text-indigo-600 text-xs font-bold rounded-full hover:bg-indigo-50 transition-all shadow-sm"><LucideIcon icon="FileText" size={12} />상세 풀이</button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div className="bg-white/80 p-3 rounded-lg border border-gray-100 text-center shadow-sm"><p className="text-xs text-gray-400 mb-1">최종 승자</p><p className="text-lg font-bold text-indigo-600">{result.winner}</p></div>
+                        <div className="bg-white/80 p-3 rounded-lg border border-gray-100 text-center shadow-sm"><p className="text-xs text-gray-400 mb-1">획득 점수</p><p className="text-lg font-bold text-green-600">{result.winner === 'GPT' ? `+${result.scores?.GPT || 0}` : `+${result.scores?.Gemini || 0}`} Point</p></div>
+                    </div>
+
+                    <div className="bg-white rounded-lg border border-indigo-100 p-4 shadow-sm">
+                        <h3 className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-2"><LucideIcon icon="CheckCircle2" size={16} className="text-green-500" />최종 정답</h3>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">{result.final_answer}</p>
+                    </div>
+                </div>
+            );
+        };
+
         const CloudCardBackground = ({ children, onClick, className }) => {
         return (
             <div onClick={onClick} className={`relative p-8 flex flex-col items-center justify-center min-h-[180px] transition-transform hover:scale-105 cursor-pointer group ${className}`}>
-            {/* SVG Cloud Background (Pixel Art Style Approximation) */}
             <svg className="absolute inset-0 w-full h-full drop-shadow-xl" viewBox="0 0 200 150" preserveAspectRatio="none" style={{imageRendering: 'pixelated'}}>
-                {/* Shadow/Border (Black) */}
                 <path fill="#000" d="M40 10 H90 V20 H110 V10 H160 V30 H180 V80 H160 V100 H110 V90 H90 V100 H40 V80 H20 V30 H40 Z" transform="scale(1.02) translate(-2, -2)" />
-                
-                {/* Inner White */}
                 <path fill="#FFF" d="M40 10 H90 V20 H110 V10 H160 V30 H180 V80 H160 V100 H110 V90 H90 V100 H40 V80 H20 V30 H40 Z" />
             </svg>
-            
-            {/* Content Container */}
             <div className="relative z-10 w-full h-full flex flex-col gap-2">
                 {children}
             </div>
@@ -483,31 +538,23 @@
         )
         }
 
-
-        // ProjectCard (Modified to use CloudCardBackground)
         const ProjectCard = ({ id, title, date, on_click }) => (
         <CloudCardBackground onClick={on_click}>
             <div className="flex items-start justify-between w-full mb-2">
-            {/* 1 & 2. Folder removed, Title takes its place */}
             <h3 className="font-bold text-gray-800 text-2xl leading-tight line-clamp-2 text-left">
                 {title}
             </h3>
             <div className="text-xs text-gray-500 font-mono whitespace-nowrap ml-2 mt-1">{date}</div>
             </div>
-            
-            {/* 3. Description removed */}
-            
-            {/* 4. Entrance link white */}
             <div className="mt-auto w-full flex items-center justify-end text-white text-xs font-bold gap-1 opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md">
             입장하기 <LucideIcon icon="ChevronRight" size={14} />
             </div>
         </CloudCardBackground>
         );
 
-        // NewProjectCard (Modified to use CloudCardBackground)
         const NewProjectCard = ({ on_create }) => (
         <CloudCardBackground onClick={on_create} className="opacity-90 hover:opacity-100">
-            <div className="flex flex-col items-center justify-center h-full gap-1 text-gray-500 group-hover:text-blue-600 mb-10"> {/* Changed mt-2 to mb-10 for upward positioning */}
+            <div className="flex flex-col items-center justify-center h-full gap-1 text-gray-500 group-hover:text-blue-600 mb-10"> 
                 <LucideIcon icon="Plus" size={20} />
                 <span className="font-bold text-base">새 프로젝트 생성</span>
             </div>
@@ -523,8 +570,8 @@
         const [current_project, set_current_project] = useState(null);
 
         const [input, set_input] = useState("");
-        const [image, set_image] = useState(null); // Preview URL
-        const [imageFile, set_imageFile] = useState(null); // Actual File object for upload
+        const [image, set_image] = useState(null); 
+        const [imageFile, set_imageFile] = useState(null); 
 
         const [logs, set_logs] = useState([]);
         const [is_loading, set_is_loading] = useState(false); 
@@ -533,29 +580,27 @@
         const [is_modal_open, set_is_modal_open] = useState(false);
         const [process_started, set_process_started] = useState(false);
         
-        // --- [New State for Project Creation Modal] ---
         const [is_create_modal_open, set_is_create_modal_open] = useState(false);
         const [new_project_title, set_new_project_title] = useState("");
 
+        const scrollRef = useRef(null);
+
         const handle_intro_complete = () => { set_view('projectList'); };
 
-        // Step 1: Open the modal
         const open_create_modal = () => {
-            set_new_project_title(""); // Reset title input
+            set_new_project_title(""); 
             set_is_create_modal_open(true);
         };
 
-        // Step 2: Submit the new project with user-defined title
         const handle_create_project_submit = (e) => {
             e.preventDefault();
             if (!new_project_title.trim()) return;
 
-            // "project_id" is defined in API spec. "id" is used for local React key.
             const new_project = { 
             project_id: `proj_${Date.now()}`, 
             id: Date.now(), 
             title: new_project_title, 
-            date: new_project_title ? new Date().toLocaleDateString() : new Date().toLocaleDateString(), // Just in case
+            date: new_project_title ? new Date().toLocaleDateString() : new Date().toLocaleDateString(),
             logs: [], 
             result: null 
             };
@@ -580,6 +625,13 @@
             }
         };
 
+        // Auto scroll to bottom when result or logs update
+        useEffect(() => {
+            if (scrollRef.current) {
+                scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            }
+        }, [logs, result, is_loading]);
+
         const handle_submit = async (e) => {
             e.preventDefault();
             if (!input.trim() && !imageFile) return;
@@ -589,18 +641,13 @@
             set_result(null); 
             set_logs([]); 
             
-            const user_log = { step: 0, sender: "User", message: input + (image ? " [이미지 첨부됨]" : "") };
-            set_logs([user_log]);
-            
             try {
-                // Construct FormData for Flask backend
                 const formData = new FormData();
                 formData.append('question', input);
                 if (imageFile) {
                     formData.append('image', imageFile);
                 }
 
-                // Call backend API
                 const response = await fetch('/api/solve', {
                     method: 'POST',
                     body: formData
@@ -612,22 +659,15 @@
 
                 const final_result = await response.json();
 
-                // Backend response structure: 
-                // { winner, final_answer, scores, process: [{step, model, content}, ...] }
-                
-                // Simulate step-by-step process from backend history
                 if (final_result.process && Array.isArray(final_result.process)) {
                     for (const process_step of final_result.process) {
-                        // Map backend 'model' to frontend 'sender' (System, GPT, Gemini)
-                        // Map backend 'content' to frontend 'message'
                         const log_entry = {
                             step: process_step.step || 0,
-                            sender: process_step.model, // App.py uses "model" key
-                            message: process_step.content // App.py uses "content" key
+                            sender: process_step.model, 
+                            message: process_step.content 
                         };
                         
                         set_logs(prev => [...prev, log_entry]);
-                        // Add a small delay to simulate real-time thinking
                         await new Promise(r => setTimeout(r, 800));
                     }
                 }
@@ -642,8 +682,6 @@
                 set_is_loading(false); 
             }
         };
-        
-        const current_question = logs.find(l => l.sender === 'User')?.message || input;
         
         return (
             <>
@@ -673,7 +711,6 @@
                         {projects.map((project) => <ProjectCard key={project.id} {...project} on_click={() => enter_project(project)} />)}
                     </div>
                     
-                    {/* --- [Project Creation Modal] --- */}
                     {is_create_modal_open && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
                         <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden flex flex-col">
@@ -705,35 +742,76 @@
 
                 {view === 'chat' && (
                     <div className="w-full h-full flex flex-col items-center relative">
-                    <button onClick={back_to_projects} className="absolute top-6 left-6 z-50 bg-white/80 p-2 rounded-full shadow-md hover:bg-white transition-colors text-gray-600"><LucideIcon icon="ArrowLeft" size={20} /></button>
+                    <button onClick={back_to_projects} className="absolute top-4 left-4 sm:top-8 sm:left-8 z-50 bg-white/90 hover:bg-white px-4 py-2 rounded-full shadow-lg transition-all hover:scale-105 text-gray-700 font-bold text-sm flex items-center gap-2 border border-gray-200">
+                        <LucideIcon icon="ArrowLeft" size={18} />
+                        <span className="hidden sm:inline">목록으로</span>
+                    </button>
                     {is_modal_open && <ProcessModal logs={logs.filter(log => log.sender !== 'User')} on_close={() => set_is_modal_open(false)} />}
                     
-                    {/* 질문 전송 시 항상 하단 줄다리기 애니메이션 표시 */}
                     {process_started && (
                         <TugOfWarScene state={is_loading ? 'loading' : 'finished'} winner={result?.winner} />
                     )}
 
-                    {result && <ResultCard result={result} question_text={current_question} on_show_process={() => set_is_modal_open(true)} />}
-                    {!is_loading && result && (
-                        <button onClick={() => { set_process_started(false); set_result(null); set_input(""); set_image(null); set_imageFile(null); }} className="absolute bottom-8 right-8 z-50 bg-white text-indigo-600 p-3 rounded-full shadow-lg hover:bg-gray-100 font-bold text-xs flex items-center gap-1"><LucideIcon icon="X" size={16} /> 처음으로</button>
-                    )}
-                    <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[50vh] mt-20 z-20 relative animate-fade-in-up mx-4">
-                        <div className="bg-white border-b px-6 py-4 flex items-center justify-between z-10">
-                        <div className="flex items-center gap-2"><div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold">G</div><h1 className="text-xl font-bold text-gray-800 truncate max-w-[200px]">{current_project?.title}</h1></div>
-                        <div className="text-xs text-gray-400 flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>Online</div>
+                    {/* [UI 수정] 질문창 크기 확대 (max-w-2xl -> max-w-4xl, h-[50vh] -> h-[65vh]) */}
+                    <div className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[65vh] mt-20 z-20 relative animate-fade-in-up mx-4">
+                        <div className="bg-white border-b px-6 py-4 flex items-center justify-between z-10 shadow-sm">
+                            <div className="flex items-center gap-2"><div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg flex items-center justify-center text-white font-bold">G</div><h1 className="text-xl font-bold text-gray-800 truncate max-w-[200px] sm:max-w-md">{current_project?.title}</h1></div>
+                            <div className="flex items-center gap-3">
+                                <div className="text-xs text-gray-400 flex items-center gap-1"><span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>Online</div>
+                                {!is_loading && result && (
+                                    <button onClick={() => { set_process_started(false); set_result(null); set_input(""); set_image(null); set_imageFile(null); }} className="text-xs font-bold text-gray-500 hover:text-indigo-600 flex items-center gap-1"><LucideIcon icon="RefreshCw" size={12} /> 처음으로</button>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex-1 flex flex-col items-center justify-center text-gray-300 space-y-4 bg-gray-50">
-                        {process_started && is_loading ? (
-                            <div className="flex flex-col items-center gap-3 animate-pulse"><LucideIcon icon="Award" size={48} className="text-indigo-300 animate-bounce" /><p className="text-sm font-bold text-indigo-400">AI들이 치열하게 검증 중입니다...</p></div>
-                        ) : (<><LucideIcon icon="Award" size={48} className="opacity-20" /><p className="text-sm text-center">질문을 입력하거나 이미지를 업로드하여<br/>두 AI의 신뢰도 경쟁을 시작하세요.</p></>)}
+                        
+                        {/* Scrollable Content Area */}
+                        <div className="flex-1 overflow-y-auto bg-gray-50 p-6 space-y-6" ref={scrollRef}>
+                            {process_started ? (
+                                <>
+                                    {/* User Question Bubble */}
+                                    <div className="flex justify-end">
+                                        <div className="bg-indigo-600 text-white rounded-2xl rounded-tr-none px-5 py-3 max-w-[80%] shadow-md">
+                                            {image && <img src={image} alt="User upload" className="mb-2 rounded-lg max-h-40 object-cover border border-indigo-400" />}
+                                            <p className="text-sm leading-relaxed whitespace-pre-wrap">{input || (image ? "이미지 분석 요청" : "")}</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Loading State */}
+                                    {is_loading && (
+                                        <div className="flex justify-start animate-fade-in">
+                                            <div className="bg-white border border-indigo-100 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm flex flex-col items-center gap-3 min-w-[200px]">
+                                                <LucideIcon icon="Award" size={32} className="text-indigo-400 animate-bounce" />
+                                                <p className="text-xs font-bold text-indigo-400 animate-pulse">AI들이 치열하게 검증 중입니다...</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* [UI 수정] 결과 카드가 이제 채팅창 안에 자연스럽게 표시됨 */}
+                                    {result && (
+                                        <div className="flex justify-start w-full">
+                                           <ResultContent result={result} on_show_process={() => set_is_modal_open(true)} />
+                                        </div>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="h-full flex flex-col items-center justify-center text-gray-300 space-y-4">
+                                    <LucideIcon icon="Award" size={64} className="opacity-20" />
+                                    <p className="text-base text-center font-medium text-gray-400">질문을 입력하거나 이미지를 업로드하여<br/>두 AI의 신뢰도 경쟁을 시작하세요.</p>
+                                </div>
+                            )}
                         </div>
-                        <div className="bg-white border-t p-4">
-                        {image && <div className="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg w-fit"><img src={image} alt="Preview" className="w-10 h-10 object-cover rounded-md" /><span className="text-xs text-gray-500">이미지 첨부됨</span><button onClick={() => {set_image(null); set_imageFile(null);}} className="text-gray-400 hover:text-red-500"><LucideIcon icon="XCircle" size={16} /></button></div>}
-                        <form onSubmit={handle_submit} className="flex items-center gap-2">
-                            <label className="cursor-pointer p-3 text-gray-400 hover:text-indigo-500 transition-colors rounded-full hover:bg-indigo-50"><LucideIcon icon="Upload" size={20} /><input type="file" accept="image/*" className="hidden" onChange={handle_image_upload} /></label>
-                            <input type="text" value={input} onChange={(e) => set_input(e.target.value)} placeholder="질문 내용을 입력하세요..." className="flex-1 bg-gray-100 text-gray-800 placeholder-gray-400 px-4 py-3 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all" disabled={is_loading} />
-                            <button type="submit" disabled={is_loading || (!input && !image)} className={`p-3 rounded-full text-white shadow-md transition-all ${is_loading || (!input && !image) ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-105'}`}><LucideIcon icon="Send" size={20} /></button>
-                        </form>
+
+                        {/* Input Area */}
+                        <div className="bg-white border-t z-10">
+                            <ConfidenceBar scores={scores} />
+                            <div className="p-4 pt-2">
+                                {image && !process_started && <div className="flex items-center gap-2 mb-2 p-2 bg-gray-50 rounded-lg w-fit"><img src={image} alt="Preview" className="w-10 h-10 object-cover rounded-md" /><span className="text-xs text-gray-500">이미지 첨부됨</span><button onClick={() => {set_image(null); set_imageFile(null);}} className="text-gray-400 hover:text-red-500"><LucideIcon icon="XCircle" size={16} /></button></div>}
+                                <form onSubmit={handle_submit} className="flex items-center gap-2">
+                                    <label className={`cursor-pointer p-3 transition-colors rounded-full ${is_loading ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-indigo-500 hover:bg-indigo-50'}`}><LucideIcon icon="Upload" size={20} /><input type="file" accept="image/*" className="hidden" onChange={handle_image_upload} disabled={is_loading} /></label>
+                                    <input type="text" value={input} onChange={(e) => set_input(e.target.value)} placeholder={process_started ? "검증이 진행 중입니다..." : "질문 내용을 입력하세요..."} className="flex-1 bg-gray-100 text-gray-800 placeholder-gray-400 px-4 py-3 rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all disabled:opacity-50 disabled:cursor-not-allowed" disabled={is_loading} />
+                                    <button type="submit" disabled={is_loading || (!input && !image)} className={`p-3 rounded-full text-white shadow-md transition-all ${is_loading || (!input && !image) ? 'bg-gray-300 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 hover:scale-105'}`}><LucideIcon icon="Send" size={20} /></button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                     </div>
