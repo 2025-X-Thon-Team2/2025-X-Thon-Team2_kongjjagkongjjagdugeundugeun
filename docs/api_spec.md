@@ -98,203 +98,73 @@ GemPT API 명세서 (API Specification)
 ```mermaid
 graph TD
 
-    %% =========================
-    %% 프론트엔드 영역 (FE)
-    %% =========================
     subgraph FE [프론트엔드]
-        A[User Input: Question, Image] --> B[POST /api/solve Request]
+        A[User Input: Question, Image] --> B[POST /api/solve]
     end
 
-    %% =========================
-    %% 백엔드 영역 (BE)
-    %% =========================
     subgraph BE [백엔드]
-        B --> C{run_analysis_logic 함수 시작}
 
-        C --> D[1. 프로젝트별 신뢰도 점수 로드]
-        D --> E[2. 이미지 과목 분류 (Gemini)]
-        E --> F[3. 지식 크롤링 & 패키지 생성 (Gemini, SerpAPI)]
-        F --> G[4. 다국어 번역 AI 로직]
-        G --> H[5. GPT 초기 해결책 생성 (A01)]
-        H --> I[6. Gemini 검증 (R02)]
+        B --> C{run_analysis_logic 시작}
 
-        I --> J{R02 == "정답"?}
+        C --> D[1. 프로젝트 신뢰도 로드]
+        D --> E[2. 이미지 과목 분류 - Gemini]
+        E --> F[3. 지식 크롤링 및 패키지 생성]
+        F --> G[4. 다국어 번역 로직]
+        G --> H[5. GPT 초기 답변 생성 A01]
+        H --> I[6. Gemini 검증 R02]
 
-        %% ----- Gemini가 GPT 답변에 동의하는 경우 -----
-        J -- Yes --> K[신뢰도 업데이트: 동의 (Draw Agreement)]
+        I --> J{R02 == 정답?}
+
+        %% --- 동의 ---
+        J -- Yes --> K[신뢰도 업데이트 - 동의]
         K --> L[최종 답변 = A01]
-        L --> M[토론 루프 종료]
+        L --> M[토론 종료]
 
-        %% ----- Gemini가 GPT 답변에 반박하는 경우 -----
-        J -- No --> N[토론 루프 시작 (max_loops = 5)]
-        N --> O[Loop++ & GPT 방어 (gpt_defense)]
+        %% --- 반박 ---
+        J -- No --> N[토론 루프 시작]
+        N --> O[Loop 증가 및 GPT 방어]
 
         O --> P{GPT 오류 인정?}
 
-        %% GPT가 틀렸다고 인정 → Gemini 승리
-        P -- Yes --> Q[신뢰도 업데이트: Gemini 승리]
-        Q --> R[최종 답변 = Gemini 수정 제안]
+        %% --- GPT 인정 = Gemini 승 ---
+        P -- Yes --> Q[신뢰도 업데이트 - Gemini 승]
+        Q --> R[최종 답변 = Gemini 제안]
         Q --> M
         R --> M
 
-        %% GPT가 인정하지 않음 → Gemini 재평가
-        P -- No --> S[Gemini 재평가 (gemini_reaction)]
-        S --> T{Gemini convinced / confirmed?}
+        %% --- GPT 반박 유지 ---
+        P -- No --> S[Gemini 재평가]
+        S --> T{Gemini 확신 변화?}
 
-        %% Gemini가 GPT의 반박에 설득됨 → GPT 승리
-        T -- Yes (conv.) --> U[신뢰도 업데이트: GPT 승리]
+        %% --- Gemini 설득됨 → GPT 승 ---
+        T -- conv --> U[신뢰도 업데이트 - GPT 승]
         U --> V[최종 답변 = GPT 방어]
         U --> M
         V --> M
 
-        %% Gemini가 GPT 방어를 사실상 정정(correction)한 경우 → Gemini 승리
-        T -- Yes (corr.) --> W[신뢰도 업데이트: Gemini 승리]
+        %% --- Gemini 정정함 → Gemini 승 ---
+        T -- corr --> W[신뢰도 업데이트 - Gemini 승]
         W --> X[최종 답변 = GPT 방어]
         W --> M
         X --> M
 
-        %% 둘 다 계속 우기면 → 반복/타임아웃 판정
-        T -- No --> Y{Loop < max_loops?}
+        %% --- 둘 다 고집 → 루프 반복 ---
+        T -- No --> Y{Loop < max?}
         Y -- Yes --> O
-        Y -- No --> Z[신뢰도 업데이트: Draw (Timeout)]
+        Y -- No --> Z[신뢰도 업데이트 - Timeout]
         Z --> AA[신뢰도 비교 후 최종 답변 결정]
         AA --> M
 
-        %% ----- 백엔드 종료 처리 -----
-        M --> BB[7. 프로젝트별 신뢰도 점수 저장]
-        BB --> CC[8. 최종 요약 및 백엔드 응응 생성]
-        CC --> DD[백엔드 (BE) - run_analysis_logic 종료]
+        %% --- 백엔드 종료 ---
+        M --> BB[신뢰도 저장]
+        BB --> CC[최종 응답 생성]
+        CC --> DD[run_analysis_logic 종료]
     end
 
-    %% =========================
-    %% 백 → 프론트 결과 전달
-    %% =========================
-    DD --> EE[프론트엔드 (FE): 최종 답변 및 토론 과정, 점수 표시]
+    DD --> EE[프론트엔드: 최종 답변 및 점수 표시]
 ```
 
-   [프론트엔드 (FE)]
-   User Question & Image 입력
-     |
-     v
-   [FE] POST /api/solve (project_id, question, image 전송)
-     |
-     v
-   [백엔드 (BE) - run_analysis_logic 시작]
-   1. 프로젝트별 신뢰도 점수 로드 (load_project_scores(project_id))
-   2. 이미지 전처리 & 과목 분류 (Gemini - PROMPT_SUBJECT_CLASSIFIER)
-      - 결과: Subject
-     |
-     v
-   3. 지식 크롤링 & 패키지 생성 (Gemini)
-      - Subject 기반 검색어 생성 (PROMPT_KNOWLEDGE_CRAWLER_QUERIES)
-      - Google Search API (SerpAPI)로 검색 수행
-      - 검색 결과로 지식 패키지 생성 (PROMPT_KNOWLEDGE_PACKAGE_GENERATOR)
-      - 결과: knowledge_package_str
-     |
-     v
-   4. 다국어 번역 AI 로직 (Implicit/Optional - 사용자 질문 번역, 검색 결과 번역 등)
-      (이전 논의된 '한국어 질문 -> 영어 번역 -> 영어 검색/답변 생성 -> 한국어 번역' 로직)
-     |
-     v
-   5. GPT 초기 해결책 생성 (GPT-4o - PROMPT_SOLVER_INIT)
-      - knowledge_package_str & Image & Question 전달
-      - 결과: A01 (GPT의 초기 답변)
-     |
-     v
-   6. Gemini 검증 (Gemini - PROMPT_VERIFIER_INIT)
-      - Q + A01 + Image 전달 (GPT의 답변에 대한 검증)
-      - 결과: R02 (Gemini의 평가: "정답" 또는 "오류 + 근거")
-     |
-     v
-   [토론 루프 시작]
-   Loop = 0, max_loops = 5
-
-   IF R02 == "정답"
-     |
-     v
-     신뢰도 업데이트: GPT와 Gemini 동의 (Draw Agreement)
-     신뢰도 점수 변경 없음 (또는 미미한 기본 점수 부여)
-     최종 답변 = A01
-     탈출
-     |
-     v
-   ELSE (R02 == "오류")
-     |
-     v
-     Loop += 1
-     [GPT 방어] GPT에 Gemini의 비판 전달 (GPT-4o - PROMPT_SOLVER_DEFENSE)
-       - 결과: GPT의 방어 (gpt_defense)
-       |
-       v
-     IF GPT admits error ("오류가 있었음을 인정합니다")
-       |
-       v
-       신뢰도 업데이트: Gemini 승리
-       Gemini 점수 증가 (points = (2**(2 * Loop - 1)) - 1)
-       최종 답변 = Gemini의 수정된 해결책 (R02에서 추출) 또는 GPT의 수정된 답변
-       탈출
-       |
-       v
-     ELSE (GPT defends)
-       |
-       v
-       [Gemini 재평가] Gemini에 GPT의 방어 전달 (Gemini - PROMPT_VERIFIER_REBUTTAL)
-         - 결과: Gemini의 반응 (gemini_reaction)
-         |
-         v
-       IF Gemini is convinced by GPT's defense ("원래 주장이 옳았음을 인정합니다")
-         |
-         v
-         신뢰도 업데이트: GPT 승리
-         GPT 점수 증가 (points = (2**(2 * Loop)) - 1)
-         최종 답변 = GPT의 방어 (gpt_defense)
-         탈출
-         |
-         v
-       ELSE IF Gemini confirms correction ("정확함을 확인했습니다")
-         |
-         v
-         신뢰도 업데이트: Gemini 승리
-         Gemini 점수 증가 (points = (2**(2 * Loop - 1)) - 1)
-         최종 답변 = GPT의 방어 (gpt_defense)
-         탈출
-         |
-         v
-       ELSE (Gemini still finds error or rejects defense)
-         |
-         v
-         IF Loop < max_loops (5회)
-           |
-           v
-           Gemini의 새로운 비판으로 다음 루프 진행
-           (current_critique = gemini_reaction)
-           재반복
-           |
-           v
-         ELSE (Loop == max_loops, 토론 종료)
-           |
-           v
-           신뢰도 업데이트: Draw (Timeout)
-           신뢰도 비교 (GPT score vs Gemini score)
-           승자 모델에 따라 최종 답변 결정
-           탈출
-           |
-           v
-   [토론 루프 종료]
-     |
-     v
-   7. 프로젝트별 신뢰도 점수 저장 (save_project_scores(project_id, credit_scores))
-   8. 최종 요약 형식 생성 (format_final_summary)
-   9. 백엔드 응답 (winner, final_answer, scores, process 로그 포함)
-
-   [백엔드 (BE) - run_analysis_logic 종료]
-     |
-     v
-   [프론트엔드 (FE)]
-   사용자에게 최종 답변 및 토론 과정, 점수 표시
-
----
-
+```
 7. 신뢰도 점수 산정 방식
 
    Gemini와 GPT의 신뢰도 점수는 토론 루프(Loop)의 결과에 따라 동적으로 산정됩니다. 'Loop'는 토론 라운드를 의미하며, 값이 1부터 시작합니다.
