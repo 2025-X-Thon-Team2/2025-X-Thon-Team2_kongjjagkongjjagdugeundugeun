@@ -95,6 +95,82 @@ GemPT API 명세서 (API Specification)
 6. API 상세 흐름도
 
    본 섹션은 /api/solve 엔드포인트 호출 시 발생하는 AI 시스템의 상세 처리 흐름을 설명합니다.
+```mermaid
+graph TD
+
+    %% =========================
+    %% 프론트엔드 영역 (FE)
+    %% =========================
+    subgraph FE [프론트엔드]
+        A[User Input: Question, Image] --> B[POST /api/solve Request]
+    end
+
+    %% =========================
+    %% 백엔드 영역 (BE)
+    %% =========================
+    subgraph BE [백엔드]
+        B --> C{run_analysis_logic 함수 시작}
+
+        C --> D[1. 프로젝트별 신뢰도 점수 로드]
+        D --> E[2. 이미지 과목 분류 (Gemini)]
+        E --> F[3. 지식 크롤링 & 패키지 생성 (Gemini, SerpAPI)]
+        F --> G[4. 다국어 번역 AI 로직]
+        G --> H[5. GPT 초기 해결책 생성 (A01)]
+        H --> I[6. Gemini 검증 (R02)]
+
+        I --> J{R02 == "정답"?}
+
+        %% ----- Gemini가 GPT 답변에 동의하는 경우 -----
+        J -- Yes --> K[신뢰도 업데이트: 동의 (Draw Agreement)]
+        K --> L[최종 답변 = A01]
+        L --> M[토론 루프 종료]
+
+        %% ----- Gemini가 GPT 답변에 반박하는 경우 -----
+        J -- No --> N[토론 루프 시작 (max_loops = 5)]
+        N --> O[Loop++ & GPT 방어 (gpt_defense)]
+
+        O --> P{GPT 오류 인정?}
+
+        %% GPT가 틀렸다고 인정 → Gemini 승리
+        P -- Yes --> Q[신뢰도 업데이트: Gemini 승리]
+        Q --> R[최종 답변 = Gemini 수정 제안]
+        Q --> M
+        R --> M
+
+        %% GPT가 인정하지 않음 → Gemini 재평가
+        P -- No --> S[Gemini 재평가 (gemini_reaction)]
+        S --> T{Gemini convinced / confirmed?}
+
+        %% Gemini가 GPT의 반박에 설득됨 → GPT 승리
+        T -- Yes (conv.) --> U[신뢰도 업데이트: GPT 승리]
+        U --> V[최종 답변 = GPT 방어]
+        U --> M
+        V --> M
+
+        %% Gemini가 GPT 방어를 사실상 정정(correction)한 경우 → Gemini 승리
+        T -- Yes (corr.) --> W[신뢰도 업데이트: Gemini 승리]
+        W --> X[최종 답변 = GPT 방어]
+        W --> M
+        X --> M
+
+        %% 둘 다 계속 우기면 → 반복/타임아웃 판정
+        T -- No --> Y{Loop < max_loops?}
+        Y -- Yes --> O
+        Y -- No --> Z[신뢰도 업데이트: Draw (Timeout)]
+        Z --> AA[신뢰도 비교 후 최종 답변 결정]
+        AA --> M
+
+        %% ----- 백엔드 종료 처리 -----
+        M --> BB[7. 프로젝트별 신뢰도 점수 저장]
+        BB --> CC[8. 최종 요약 및 백엔드 응응 생성]
+        CC --> DD[백엔드 (BE) - run_analysis_logic 종료]
+    end
+
+    %% =========================
+    %% 백 → 프론트 결과 전달
+    %% =========================
+    DD --> EE[프론트엔드 (FE): 최종 답변 및 토론 과정, 점수 표시]
+```
 
    [프론트엔드 (FE)]
    User Question & Image 입력
